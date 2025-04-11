@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,8 +14,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -34,20 +35,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
+    --sidebar-background: 240 6% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -96,6 +90,43 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-phoneb-background text-phoneb-text;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+.phoneb-transition {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.phoneb-card {
+  @apply bg-phoneb-card-bg rounded-lg shadow-sm border border-gray-100 p-4;
+}
+
+.phoneb-input {
+  @apply w-full px-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-phoneb-primary/30 focus:border-phoneb-primary/70;
+}
+
+.phoneb-button {
+  @apply px-4 py-2 rounded-md transition-all duration-200 ease-in-out font-medium;
+}
+
+.phoneb-button-primary {
+  @apply phoneb-button bg-phoneb-primary text-white hover:bg-phoneb-primary/90;
+}
+
+.phoneb-button-secondary {
+  @apply phoneb-button bg-phoneb-secondary text-phoneb-text hover:bg-phoneb-secondary/80;
+}
+
+.phoneb-button-success {
+  @apply phoneb-button bg-phoneb-success text-white hover:bg-phoneb-success/90;
+}
+
+.phoneb-button-error {
+  @apply phoneb-button bg-phoneb-error text-white hover:bg-phoneb-error/90;
+}
+
+.phoneb-button-outline {
+  @apply phoneb-button bg-transparent border border-phoneb-primary text-phoneb-primary hover:bg-phoneb-primary/10;
 }
