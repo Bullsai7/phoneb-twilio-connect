@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useTwilio } from '@/context/TwilioContext';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 
 const AppLayout: React.FC = () => {
-  const { isAuthenticated, loading } = useTwilio();
+  const { isAuthenticated, loading: twilioLoading } = useTwilio();
+  const { session, loading: authLoading } = useSupabaseAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleSidebar = () => {
@@ -14,6 +16,7 @@ const AppLayout: React.FC = () => {
   };
 
   // Show loading state
+  const loading = twilioLoading || authLoading;
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -22,7 +25,12 @@ const AppLayout: React.FC = () => {
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to auth if not logged in with Supabase
+  if (!session) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  // Redirect to twilio auth if not connected to Twilio
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
   }

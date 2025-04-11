@@ -1,15 +1,17 @@
 
 import React, { useState } from 'react';
 import { useTwilio } from '@/context/TwilioContext';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Phone } from 'lucide-react';
+import { Phone, LogOut } from 'lucide-react';
 
 const AuthForm: React.FC = () => {
   const { login } = useTwilio();
+  const { signOut, user } = useSupabaseAuth();
   const [accountSid, setAccountSid] = useState('');
   const [authToken, setAuthToken] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,13 +27,8 @@ const AuthForm: React.FC = () => {
       return;
     }
 
-    // In a production app, we would validate these credentials with Twilio
-    // For now, we'll just accept them
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      login({
+      await login({
         accountSid,
         authToken
       });
@@ -53,7 +50,7 @@ const AuthForm: React.FC = () => {
         </div>
         <CardTitle className="text-2xl font-bold text-center">Welcome to PhoneB</CardTitle>
         <CardDescription className="text-center">
-          Enter your Twilio credentials to continue
+          {user ? `Logged in as ${user.email}` : "Enter your Twilio credentials to continue"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -89,9 +86,9 @@ const AuthForm: React.FC = () => {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col space-y-2">
+      <CardFooter className="flex flex-col space-y-4">
         <p className="text-sm text-center text-gray-500">
-          Your credentials are securely stored in your browser and never sent to our servers
+          Your credentials are securely stored and encrypted in the database
         </p>
         <p className="text-xs text-center text-gray-400">
           Don't have a Twilio account?{" "}
@@ -104,6 +101,18 @@ const AuthForm: React.FC = () => {
             Sign up for free
           </a>
         </p>
+        
+        {user && (
+          <Button
+            variant="outline"
+            onClick={signOut}
+            className="mt-4"
+            size="sm"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

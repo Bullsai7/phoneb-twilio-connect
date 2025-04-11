@@ -9,7 +9,99 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      call_history: {
+        Row: {
+          contact_name: string | null
+          direction: string
+          duration: string | null
+          id: string
+          phone_number: string
+          status: string
+          timestamp: string
+          twilio_call_sid: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          direction: string
+          duration?: string | null
+          id?: string
+          phone_number: string
+          status: string
+          timestamp?: string
+          twilio_call_sid?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          direction?: string
+          duration?: string | null
+          id?: string
+          phone_number?: string
+          status?: string
+          timestamp?: string
+          twilio_call_sid?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      message_history: {
+        Row: {
+          contact_name: string | null
+          content: string
+          direction: string
+          id: string
+          phone_number: string
+          timestamp: string
+          twilio_message_sid: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          content: string
+          direction: string
+          id?: string
+          phone_number: string
+          timestamp?: string
+          twilio_message_sid?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          content?: string
+          direction?: string
+          id?: string
+          phone_number?: string
+          timestamp?: string
+          twilio_message_sid?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          twilio_account_sid: string | null
+          twilio_auth_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

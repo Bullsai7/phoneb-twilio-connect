@@ -1,11 +1,16 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import AuthForm from '@/components/Auth/AuthForm';
 import { useTwilio } from '@/context/TwilioContext';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const { isAuthenticated, loading } = useTwilio();
+  const { isAuthenticated, loading: twilioLoading } = useTwilio();
+  const { session, loading: authLoading } = useSupabaseAuth();
+  
+  const loading = twilioLoading || authLoading;
   
   // Show loading state
   if (loading) {
@@ -16,11 +21,27 @@ const Index = () => {
     );
   }
   
-  // Redirect to dashboard if already authenticated
+  // Redirect to dashboard if already authenticated with Twilio
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Show sign in button if not logged in with Supabase
+  if (!session) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-phoneb-background p-4">
+        <div className="w-full max-w-md text-center space-y-8">
+          <h1 className="text-3xl font-bold text-phoneb-primary">PhoneB</h1>
+          <p className="text-lg">Your virtual phone system powered by Twilio</p>
+          <Button asChild size="lg">
+            <Link to="/auth">Sign In / Create Account</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show Twilio connection form if logged in but not connected to Twilio
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-phoneb-background p-4">
       <div className="w-full max-w-md">
