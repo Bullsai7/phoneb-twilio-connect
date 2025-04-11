@@ -39,19 +39,33 @@ serve(async (req) => {
       );
     }
     
+    console.log("Authenticated user:", user.id);
+    
     // Get Twilio credentials from the user's profile
-    const { data: profile, error: profileError } = await supabaseClient
+    const { data: profileData, error: profileError } = await supabaseClient
       .from('profiles')
       .select('twilio_account_sid, twilio_auth_token')
-      .eq('id', user.id)
-      .single();
+      .eq('id', user.id);
     
-    if (profileError || !profile || !profile.twilio_account_sid || !profile.twilio_auth_token) {
+    // Check if profile exists and has Twilio credentials
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
       return new Response(
-        JSON.stringify({ error: 'Twilio credentials not found' }),
+        JSON.stringify({ error: 'Error fetching user profile' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+    
+    // Use maybeSingle() alternative - check if profile exists and has credentials
+    if (!profileData || profileData.length === 0 || !profileData[0].twilio_account_sid || !profileData[0].twilio_auth_token) {
+      console.log("Profile or Twilio credentials missing for user:", user.id);
+      return new Response(
+        JSON.stringify({ error: 'Twilio credentials not found. Please set up your Twilio account in the settings.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
+    
+    const profile = profileData[0];
     
     // Get the request body
     const { to } = await req.json();
@@ -63,6 +77,8 @@ serve(async (req) => {
       );
     }
     
+    console.log("Making call to:", to);
+    
     // Initialize Twilio client
     const twilioClient = twilio(profile.twilio_account_sid, profile.twilio_auth_token);
     
@@ -72,6 +88,8 @@ serve(async (req) => {
       from: '+15005550006', // Replace with your Twilio phone number
       url: 'https://handler.twilio.com/twiml/EH8ccdbd7f0b8fe34357da8ce87ebe5a16', // Default TwiML for hello world
     });
+    
+    console.log("Call initiated, SID:", call.sid);
     
     // Log call to history
     await supabaseClient.from('call_history').insert({

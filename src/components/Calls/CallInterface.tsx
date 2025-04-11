@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { 
   Phone, 
   PhoneOff, 
@@ -6,14 +7,18 @@ import {
   MicOff, 
   Volume2, 
   VolumeX,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useTwilio } from '@/context/TwilioContext';
+import { Link } from 'react-router-dom';
 
 const CallInterface: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -24,6 +29,7 @@ const CallInterface: React.FC = () => {
   const [callTo, setCallTo] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { session } = useSupabaseAuth();
+  const { isAuthenticated: isTwilioSetup } = useTwilio();
 
   const formatPhoneNumber = (value: string) => {
     // Remove non-numeric characters
@@ -51,6 +57,11 @@ const CallInterface: React.FC = () => {
     const numericValue = phoneNumber.replace(/\D/g, '');
     if (numericValue.length < 10) {
       toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    if (!isTwilioSetup) {
+      toast.error("Please set up your Twilio credentials in the settings first");
       return;
     }
 
@@ -86,7 +97,8 @@ const CallInterface: React.FC = () => {
       
     } catch (error) {
       console.error('Error making call:', error);
-      toast.error(`Failed to make call: ${error.message}`);
+      const errorMessage = error.message || "Failed to make call";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -127,6 +139,20 @@ const CallInterface: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto">
+      {!isTwilioSetup && (
+        <Alert className="mb-4">
+          <AlertDescription className="flex flex-col space-y-2">
+            <p>Twilio is not set up. Please configure your Twilio credentials in the dashboard.</p>
+            <Button variant="outline" size="sm" asChild className="w-fit">
+              <Link to="/dashboard">
+                <Settings className="mr-2 h-4 w-4" />
+                Configure Twilio
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!isCallActive ? (
         <Card>
           <CardContent className="pt-6">
@@ -142,7 +168,7 @@ const CallInterface: React.FC = () => {
                 <Button 
                   onClick={startCall}
                   className="rounded-full h-12 w-12 bg-phoneb-success hover:bg-phoneb-success/90 flex items-center justify-center p-0"
-                  disabled={isLoading}
+                  disabled={isLoading || !isTwilioSetup}
                 >
                   {isLoading ? (
                     <div className="h-5 w-5 animate-spin rounded-full border-t-2 border-b-2 border-white"></div>
