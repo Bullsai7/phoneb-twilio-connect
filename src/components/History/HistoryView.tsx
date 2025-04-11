@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Phone, 
@@ -75,7 +74,7 @@ const HistoryView: React.FC = () => {
       phoneNumber: '+1 (555) 987-6543',
       timestamp: '2023-04-09 03:15 PM',
       direction: 'outgoing',
-      content: 'Hi there, just checking in to see how you're doing.',
+      content: "Hi there, just checking in to see how you're doing.",
     },
     {
       id: 3,
@@ -104,7 +103,7 @@ const HistoryView: React.FC = () => {
       contactName: 'John Doe',
       timestamp: '2023-04-08 10:10 AM',
       direction: 'incoming',
-      content: 'Can you call me back when you're free?',
+      content: "Can you call me back when you're free?",
     },
     {
       id: 6,
@@ -122,7 +121,7 @@ const HistoryView: React.FC = () => {
       contactName: 'Alice Smith',
       timestamp: '2023-04-07 09:04 AM',
       direction: 'outgoing',
-      content: 'Let's meet at 2 PM today at the coffee shop.',
+      content: "Let's meet at 2 PM today at the coffee shop.",
     },
     {
       id: 8,
