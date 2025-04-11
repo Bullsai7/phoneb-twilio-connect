@@ -30,6 +30,16 @@ interface UseHistoryReturn {
   refreshHistory: () => void;
 }
 
+// Type guard to check if direction is valid
+function isValidDirection(direction: string): direction is 'incoming' | 'outgoing' {
+  return direction === 'incoming' || direction === 'outgoing';
+}
+
+// Type guard to check if status is valid
+function isValidStatus(status: string): status is 'completed' | 'missed' | 'busy' | 'failed' {
+  return ['completed', 'missed', 'busy', 'failed'].includes(status);
+}
+
 export function useHistory(): UseHistoryReturn {
   const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
   const [messageHistory, setMessageHistory] = useState<MessageHistoryItem[]>([]);
@@ -69,8 +79,33 @@ export function useHistory(): UseHistoryReturn {
         throw new Error(`Error fetching message history: ${messageError.message}`);
       }
 
-      setCallHistory(callData || []);
-      setMessageHistory(messageData || []);
+      // Transform and validate call data
+      const validatedCallData: CallHistoryItem[] = (callData || [])
+        .filter(call => isValidDirection(call.direction) && isValidStatus(call.status))
+        .map(call => ({
+          id: call.id,
+          phone_number: call.phone_number,
+          contact_name: call.contact_name,
+          timestamp: call.timestamp,
+          direction: call.direction as 'incoming' | 'outgoing',
+          duration: call.duration,
+          status: call.status as 'completed' | 'missed' | 'busy' | 'failed'
+        }));
+
+      // Transform and validate message data
+      const validatedMessageData: MessageHistoryItem[] = (messageData || [])
+        .filter(message => isValidDirection(message.direction))
+        .map(message => ({
+          id: message.id,
+          phone_number: message.phone_number,
+          contact_name: message.contact_name,
+          timestamp: message.timestamp,
+          direction: message.direction as 'incoming' | 'outgoing',
+          content: message.content
+        }));
+
+      setCallHistory(validatedCallData);
+      setMessageHistory(validatedMessageData);
     } catch (err) {
       console.error('Error in useHistory hook:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
