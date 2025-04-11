@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Phone, 
@@ -13,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 const CallInterface: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -21,6 +22,8 @@ const CallInterface: React.FC = () => {
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [callTo, setCallTo] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { session } = useSupabaseAuth();
 
   const formatPhoneNumber = (value: string) => {
     // Remove non-numeric characters
@@ -43,7 +46,7 @@ const CallInterface: React.FC = () => {
     setPhoneNumber(formatPhoneNumber(e.target.value));
   };
 
-  const startCall = () => {
+  const startCall = async () => {
     // Validate phone number
     const numericValue = phoneNumber.replace(/\D/g, '');
     if (numericValue.length < 10) {
@@ -51,21 +54,42 @@ const CallInterface: React.FC = () => {
       return;
     }
 
-    // In a real implementation, we would use Twilio's Voice SDK here
-    setIsCallActive(true);
-    setCallTo(phoneNumber);
-    setCallDuration(0);
-
-    // Start call duration timer
-    const interval = setInterval(() => {
-      setCallDuration(prev => prev + 1);
-    }, 1000);
-
-    // Store interval ID for cleanup
-    // @ts-ignore
-    window.callInterval = interval;
+    setIsLoading(true);
     
-    toast.success(`Calling ${phoneNumber}...`);
+    try {
+      // Call the Supabase Edge Function to make a call
+      const { data, error } = await supabase.functions.invoke('make-call', {
+        body: { to: numericValue },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      setIsCallActive(true);
+      setCallTo(phoneNumber);
+      setCallDuration(0);
+
+      // Start call duration timer
+      const interval = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+
+      // Store interval ID for cleanup
+      // @ts-ignore
+      window.callInterval = interval;
+      
+      toast.success(`Calling ${phoneNumber}...`);
+      
+    } catch (error) {
+      console.error('Error making call:', error);
+      toast.error(`Failed to make call: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const endCall = () => {
@@ -118,8 +142,13 @@ const CallInterface: React.FC = () => {
                 <Button 
                   onClick={startCall}
                   className="rounded-full h-12 w-12 bg-phoneb-success hover:bg-phoneb-success/90 flex items-center justify-center p-0"
+                  disabled={isLoading}
                 >
-                  <Phone className="h-5 w-5" />
+                  {isLoading ? (
+                    <div className="h-5 w-5 animate-spin rounded-full border-t-2 border-b-2 border-white"></div>
+                  ) : (
+                    <Phone className="h-5 w-5" />
+                  )}
                 </Button>
               </div>
               

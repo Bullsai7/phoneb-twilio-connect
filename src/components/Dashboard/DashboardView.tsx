@@ -1,40 +1,11 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, History, ArrowRight } from 'lucide-react';
-
-const RecentActivityItem: React.FC<{
-  type: 'call' | 'message';
-  direction: 'incoming' | 'outgoing';
-  contact: string;
-  time: string;
-  content?: string;
-}> = ({ type, direction, contact, time, content }) => {
-  const Icon = type === 'call' ? Phone : MessageSquare;
-  const directionColor = direction === 'incoming' ? 'text-blue-500' : 'text-green-500';
-  
-  return (
-    <div className="flex items-start p-3 border-b border-gray-100 last:border-0">
-      <div className={`mr-3 ${directionColor}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-start">
-          <p className="font-medium truncate">{contact}</p>
-          <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{time}</span>
-        </div>
-        <div className="flex items-center mt-1">
-          <span className={`text-xs capitalize ${directionColor}`}>{direction}</span>
-          {content && (
-            <p className="text-sm text-gray-600 truncate ml-2">{content}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+import { Phone, MessageSquare, History, ArrowRight, ArrowUpRight, ArrowDownLeft, User } from 'lucide-react';
+import { useHistory } from '@/hooks/useHistory';
+import { formatDistanceToNow } from 'date-fns';
 
 const QuickActionButton: React.FC<{
   icon: React.ElementType;
@@ -54,39 +25,46 @@ const QuickActionButton: React.FC<{
 );
 
 const DashboardView: React.FC = () => {
-  // Mock data - in a real app, this would come from Twilio API
+  const { callHistory, messageHistory, loading } = useHistory();
+  const navigate = useNavigate();
+  
+  // Combine call and message history and sort by timestamp
   const recentActivity = [
-    {
-      id: 1,
+    ...callHistory.slice(0, 5).map(call => ({
+      id: call.id,
       type: 'call' as const,
-      direction: 'incoming' as const,
-      contact: '+1 (555) 123-4567',
-      time: '10 min ago',
-    },
-    {
-      id: 2,
+      direction: call.direction,
+      contact: call.contact_name || call.phone_number,
+      time: call.timestamp,
+      phoneNumber: call.phone_number,
+    })),
+    ...messageHistory.slice(0, 5).map(message => ({
+      id: message.id,
       type: 'message' as const,
-      direction: 'outgoing' as const,
-      contact: 'Alice Smith',
-      time: '25 min ago',
-      content: 'I\'ll be there in 15 minutes.',
-    },
-    {
-      id: 3,
-      type: 'call' as const,
-      direction: 'outgoing' as const,
-      contact: 'Bob Johnson',
-      time: '1 hour ago',
-    },
-    {
-      id: 4,
-      type: 'message' as const,
-      direction: 'incoming' as const,
-      contact: '+1 (555) 987-6543',
-      time: '2 hours ago',
-      content: 'Could you call me back when you get a chance?',
-    },
-  ];
+      direction: message.direction,
+      contact: message.contact_name || message.phone_number,
+      time: message.timestamp,
+      content: message.content,
+      phoneNumber: message.phone_number,
+    })),
+  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+  .slice(0, 5);
+
+  const formatTime = (timestamp: string) => {
+    try {
+      return formatDistanceToNow(new Date(timestamp), { addSuffix: true });
+    } catch (e) {
+      return 'Unknown time';
+    }
+  };
+
+  const handleItemClick = (type: 'call' | 'message', phoneNumber: string) => {
+    if (type === 'call') {
+      navigate('/calls', { state: { phoneNumber } });
+    } else {
+      navigate('/messages', { state: { phoneNumber } });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -124,17 +102,45 @@ const DashboardView: React.FC = () => {
           </Link>
         </CardHeader>
         <CardContent className="p-0">
-          {recentActivity.length > 0 ? (
+          {loading ? (
+            <div className="flex justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-phoneb-primary"></div>
+            </div>
+          ) : recentActivity.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
               {recentActivity.map((activity) => (
-                <RecentActivityItem 
-                  key={activity.id}
-                  type={activity.type}
-                  direction={activity.direction}
-                  contact={activity.contact}
-                  time={activity.time}
-                  content={activity.content}
-                />
+                <div 
+                  key={activity.id} 
+                  className="flex items-start p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
+                  onClick={() => handleItemClick(activity.type, activity.phoneNumber)}
+                >
+                  <div className={`mr-3 ${activity.direction === 'incoming' ? 'text-blue-500' : 'text-green-500'}`}>
+                    {activity.type === 'call' ? (
+                      <Phone className="h-5 w-5" />
+                    ) : (
+                      <MessageSquare className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <p className="font-medium truncate">{activity.contact}</p>
+                      <span className="text-xs text-gray-500 whitespace-nowrap ml-2">{formatTime(activity.time)}</span>
+                    </div>
+                    <div className="flex items-center mt-1">
+                      <span className="text-xs capitalize flex items-center">
+                        {activity.direction === 'incoming' ? (
+                          <ArrowDownLeft className="h-3 w-3 mr-1" />
+                        ) : (
+                          <ArrowUpRight className="h-3 w-3 mr-1" />
+                        )}
+                        {activity.direction}
+                      </span>
+                      {'content' in activity && (
+                        <p className="text-sm text-gray-600 truncate ml-2">{activity.content}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           ) : (

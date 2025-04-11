@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 interface Message {
   id: number;
@@ -28,6 +30,8 @@ const MessageInterface: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentContact, setCurrentContact] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { session } = useSupabaseAuth();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   // Format phone number as user types
@@ -70,13 +74,18 @@ const MessageInterface: React.FC = () => {
   };
 
   // Send message
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!message.trim()) {
       toast.error("Please enter a message");
       return;
     }
+    
+    if (!currentContact) {
+      toast.error("No recipient selected");
+      return;
+    }
 
-    // In a real implementation, we would use Twilio's SMS API here
+    // Add message to UI
     const newMessage: Message = {
       id: Date.now(),
       text: message,
@@ -85,20 +94,40 @@ const MessageInterface: React.FC = () => {
     };
 
     setMessages(prev => [...prev, newMessage]);
+    
+    // Store the message text and clear the input
+    const messageToSend = message;
     setMessage('');
     
-    toast.success(`Message sent to ${currentContact}`);
+    setIsLoading(true);
     
-    // Simulate received message after a short delay
-    setTimeout(() => {
-      const receivedMessage: Message = {
-        id: Date.now(),
-        text: "This is a simulated response. In a real app, this would be the actual response from the recipient.",
-        sender: 'contact',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, receivedMessage]);
-    }, 2000);
+    try {
+      // Get the phone number in numeric format
+      const numericValue = currentContact.replace(/\D/g, '');
+      
+      // Call the edge function to send the message
+      const { data, error } = await supabase.functions.invoke('send-message', {
+        body: { 
+          to: numericValue,
+          message: messageToSend
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast.success(`Message sent to ${currentContact}`);
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error(`Failed to send message: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Close conversation and return to phone number input
@@ -217,13 +246,18 @@ const MessageInterface: React.FC = () => {
                         sendMessage();
                       }
                     }}
+                    disabled={isLoading}
                   />
                   <Button 
                     onClick={sendMessage}
-                    disabled={!message.trim()}
+                    disabled={!message.trim() || isLoading}
                     className="bg-phoneb-primary hover:bg-phoneb-primary/90 h-10 w-10 p-0 rounded-full flex items-center justify-center"
                   >
-                    <Send className="h-5 w-5" />
+                    {isLoading ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-t-2 border-b-2 border-white"></div>
+                    ) : (
+                      <Send className="h-5 w-5" />
+                    )}
                   </Button>
                 </div>
               </div>
