@@ -85,7 +85,7 @@ serve(async (req) => {
     // Make the call using Twilio's TwiML
     const call = await twilioClient.calls.create({
       to: to,
-      from: '+15005550006', // Replace with your Twilio phone number
+      from: '+19478889847', // Using the actual Twilio phone number
       url: 'https://handler.twilio.com/twiml/EH8ccdbd7f0b8fe34357da8ce87ebe5a16', // Default TwiML for hello world
     });
     

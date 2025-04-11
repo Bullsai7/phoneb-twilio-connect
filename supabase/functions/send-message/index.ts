@@ -69,7 +69,7 @@ serve(async (req) => {
     // Send the message
     const sms = await twilioClient.messages.create({
       to: to,
-      from: '+15005550006', // Replace with your Twilio phone number
+      from: '+19478889847', // Using the actual Twilio phone number
       body: message,
     });
     
