@@ -76,10 +76,11 @@ const AuthForm: React.FC = () => {
               </SheetHeader>
               
               <Tabs defaultValue="step1" className="mt-6">
-                <TabsList className="grid grid-cols-3">
+                <TabsList className="grid grid-cols-4">
                   <TabsTrigger value="step1">Credentials</TabsTrigger>
                   <TabsTrigger value="step2">Webhooks</TabsTrigger>
                   <TabsTrigger value="step3">Phone Number</TabsTrigger>
+                  <TabsTrigger value="step4">TwiML Apps</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="step1" className="space-y-4 mt-4">
@@ -159,6 +160,76 @@ const AuthForm: React.FC = () => {
                         Make sure the Webhook URL is correctly set for both Voice and Messaging. This will ensure that PhoneB can properly handle all incoming calls and messages.
                       </AlertDescription>
                     </Alert>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="step4" className="space-y-4 mt-4">
+                  <h3 className="font-medium text-lg">Step 4: TwiML Apps (Optional)</h3>
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      TwiML Apps provide a way to organize the URLs you use with Twilio. While not required for basic functionality, they can help manage more complex call and messaging applications.
+                    </p>
+                    
+                    <div className="bg-muted p-3 rounded-md">
+                      <h4 className="font-medium mb-2">What are TwiML Apps?</h4>
+                      <p className="text-sm text-muted-foreground">
+                        TwiML Apps are containers for your voice and messaging URLs. They allow you to organize the URLs that handle different events (like incoming calls or messages) and can be reused across multiple Twilio phone numbers.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Configuration Steps:</p>
+                      <ol className="list-decimal pl-5 text-sm space-y-2">
+                        <li>Navigate to the <a 
+                            href="https://www.twilio.com/console/voice/twiml/apps" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-phoneb-primary hover:underline inline-flex items-center"
+                          >
+                            TwiML Apps section
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </a> in your Twilio Console</li>
+                        <li>Click "Create new TwiML App"</li>
+                        <li>Give your app a friendly name (e.g., "PhoneB App")</li>
+                        <li>Set the "Request URL" for Voice to: <code className="bg-gray-100 px-1 rounded text-xs">{webhookUrl}</code></li>
+                        <li>Set the "Request URL" for Messaging to the same URL</li>
+                        <li>Save your TwiML App</li>
+                      </ol>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-3 rounded-md border">
+                      <h4 className="font-medium mb-2">Example TwiML Response Code</h4>
+                      <p className="text-xs mb-2">This is how our app will respond to incoming calls:</p>
+                      <pre className="bg-black text-green-400 p-2 rounded text-xs overflow-auto">
+{`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Hello! Welcome to Phone B.</Say>
+  <Gather numDigits="1" action="/handle-input" method="POST">
+    <Say>Press 1 to connect to an agent. Press 2 to leave a message.</Say>
+  </Gather>
+</Response>`}
+                      </pre>
+                    </div>
+                    
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        <span className="font-medium">Do I need to create a TwiML App?</span>
+                        <p className="text-xs mt-1">
+                          For basic PhoneB functionality, configuring webhooks directly on your phone number (as shown in Step 2) is sufficient. TwiML Apps are useful for more complex setups or when you want to reuse configurations across multiple phone numbers.
+                        </p>
+                      </AlertDescription>
+                    </Alert>
+                    
+                    <a 
+                      href="https://www.twilio.com/docs/usage/tutorials/how-to-use-twiml" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center text-sm text-phoneb-primary hover:underline"
+                    >
+                      Learn more about TwiML
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </a>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -265,3 +336,4 @@ const AuthForm: React.FC = () => {
 };
 
 export default AuthForm;
+
