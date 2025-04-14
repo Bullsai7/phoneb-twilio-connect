@@ -42,21 +42,25 @@ export const TwilioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       try {
+        console.log("Fetching Twilio credentials for user:", user.id);
+        
+        // Use the maybeSingle approach with proper error handling
         const { data, error } = await supabase
           .from('profiles')
           .select('twilio_account_sid, twilio_auth_token')
-          .eq('id', user.id)
-          .single();
+          .eq('id', user.id);
 
         if (error) {
           console.error('Error fetching Twilio credentials:', error);
           setCredentials(null);
-        } else if (data && data.twilio_account_sid && data.twilio_auth_token) {
+        } else if (data && data.length > 0 && data[0].twilio_account_sid && data[0].twilio_auth_token) {
+          console.log("Twilio credentials found for user");
           setCredentials({
-            accountSid: data.twilio_account_sid,
-            authToken: data.twilio_auth_token
+            accountSid: data[0].twilio_account_sid,
+            authToken: data[0].twilio_auth_token
           });
         } else {
+          console.log("No Twilio credentials found for user");
           setCredentials(null);
         }
       } catch (error) {
@@ -79,6 +83,8 @@ export const TwilioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setLoading(true);
     
     try {
+      console.log("Saving Twilio credentials for user:", user.id);
+      
       // In a real implementation, we would validate these credentials with Twilio
       // before storing them
       const { error } = await supabase

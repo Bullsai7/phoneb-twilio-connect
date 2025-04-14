@@ -8,12 +8,13 @@ import {
   Volume2, 
   VolumeX,
   User,
-  Settings
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -28,6 +29,7 @@ const CallInterface: React.FC = () => {
   const [callDuration, setCallDuration] = useState(0);
   const [callTo, setCallTo] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const { session } = useSupabaseAuth();
   const { isAuthenticated: isTwilioSetup } = useTwilio();
 
@@ -53,6 +55,9 @@ const CallInterface: React.FC = () => {
   };
 
   const startCall = async () => {
+    // Reset error state
+    setErrorDetails(null);
+    
     // Validate phone number
     const numericValue = phoneNumber.replace(/\D/g, '');
     if (numericValue.length < 10) {
@@ -68,16 +73,25 @@ const CallInterface: React.FC = () => {
     setIsLoading(true);
     
     try {
+      console.log("Starting call to:", numericValue);
+      console.log("Auth token:", session?.access_token ? "Available" : "Not available");
+      
       // Call the Supabase Edge Function to make a call
       const { data, error } = await supabase.functions.invoke('make-call', {
         body: { to: numericValue },
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`
-        }
+        headers: session?.access_token 
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined
       });
       
       if (error) {
-        throw new Error(error.message);
+        console.error("Error invoking function:", error);
+        throw new Error(error.message || "Failed to connect to call service");
+      }
+      
+      if (!data?.success) {
+        console.error("Function returned error:", data);
+        throw new Error(data?.error || "Failed to initiate call");
       }
       
       setIsCallActive(true);
@@ -98,6 +112,16 @@ const CallInterface: React.FC = () => {
     } catch (error) {
       console.error('Error making call:', error);
       const errorMessage = error.message || "Failed to make call";
+      
+      // Check for specific errors
+      if (errorMessage.includes("Twilio credentials not found")) {
+        setErrorDetails("Twilio credentials are missing or invalid. Please check your settings.");
+      } else if (errorMessage.includes("Invalid token")) {
+        setErrorDetails("Your session has expired. Please sign in again.");
+      } else {
+        setErrorDetails(errorMessage);
+      }
+      
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -140,15 +164,27 @@ const CallInterface: React.FC = () => {
   return (
     <div className="max-w-md mx-auto">
       {!isTwilioSetup && (
-        <Alert className="mb-4">
+        <Alert className="mb-4" variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Twilio Not Configured</AlertTitle>
           <AlertDescription className="flex flex-col space-y-2">
-            <p>Twilio is not set up. Please configure your Twilio credentials in the dashboard.</p>
+            <p>Please configure your Twilio credentials in the dashboard to make calls.</p>
             <Button variant="outline" size="sm" asChild className="w-fit">
               <Link to="/dashboard">
                 <Settings className="mr-2 h-4 w-4" />
                 Configure Twilio
               </Link>
             </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {errorDetails && (
+        <Alert className="mb-4" variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Call Error</AlertTitle>
+          <AlertDescription>
+            {errorDetails}
           </AlertDescription>
         </Alert>
       )}
