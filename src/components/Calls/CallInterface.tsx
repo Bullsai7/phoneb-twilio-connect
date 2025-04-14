@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Phone, 
   PhoneOff, 
@@ -9,7 +9,8 @@ import {
   VolumeX,
   User,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,8 +31,93 @@ const CallInterface: React.FC = () => {
   const [callTo, setCallTo] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
+  const [audioOutput, setAudioOutput] = useState<'granted' | 'denied' | 'pending'>('pending');
   const { session } = useSupabaseAuth();
   const { isAuthenticated: isTwilioSetup } = useTwilio();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Check for microphone and speaker permissions on mount
+  useEffect(() => {
+    checkAudioPermissions();
+  }, []);
+
+  const checkAudioPermissions = async () => {
+    try {
+      // Check mic permissions
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermission('granted');
+      
+      // Clean up mic stream
+      micStream.getTracks().forEach(track => track.stop());
+      
+      // Check audio output
+      const audio = new Audio();
+      audio.volume = 0.01; // Very low volume
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Audio playback started successfully
+            setAudioOutput('granted');
+            audio.pause();
+          })
+          .catch(error => {
+            // Auto-play was prevented
+            console.error("Audio playback failed:", error);
+            setAudioOutput('denied');
+          });
+      }
+    } catch (error) {
+      console.error("Error checking audio permissions:", error);
+      setMicPermission('denied');
+    }
+  };
+
+  const requestMicPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
+      setMicPermission('granted');
+      toast.success("Microphone access granted");
+    } catch (error) {
+      setMicPermission('denied');
+      toast.error("Microphone access denied. Please enable it in your browser settings.");
+    }
+  };
+
+  const testAudioOutput = () => {
+    try {
+      // Create audio element for testing
+      if (!audioRef.current) {
+        audioRef.current = new Audio('/ringtone.mp3');
+      }
+      
+      audioRef.current.volume = 0.3;
+      audioRef.current.play()
+        .then(() => {
+          setAudioOutput('granted');
+          toast.success("Speaker test successful");
+          
+          // Stop audio after 2 seconds
+          setTimeout(() => {
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            }
+          }, 2000);
+        })
+        .catch(error => {
+          console.error("Audio playback failed:", error);
+          setAudioOutput('denied');
+          toast.error("Speaker test failed. Please check your browser settings.");
+        });
+    } catch (error) {
+      console.error("Error testing audio output:", error);
+      toast.error("Error testing audio output");
+    }
+  };
 
   const formatPhoneNumber = (value: string) => {
     // Remove non-numeric characters
@@ -57,6 +143,13 @@ const CallInterface: React.FC = () => {
   const startCall = async () => {
     // Reset error state
     setErrorDetails(null);
+    
+    // Check microphone permission
+    if (micPermission !== 'granted') {
+      toast.error("Microphone access is required to make calls");
+      await requestMicPermission();
+      return;
+    }
     
     // Validate phone number
     const numericValue = phoneNumber.replace(/\D/g, '');
@@ -163,6 +256,45 @@ const CallInterface: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto">
+      {/* Permissions checks */}
+      <div className="space-y-4 mb-6">
+        <Alert className={micPermission === 'granted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}>
+          {micPermission === 'granted' ? 
+            <CheckCircle2 className="h-4 w-4 text-green-500" /> : 
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          }
+          <AlertTitle>{micPermission === 'granted' ? 'Microphone Access Granted' : 'Microphone Access Required'}</AlertTitle>
+          <AlertDescription className="flex flex-col space-y-2">
+            <p>{micPermission === 'granted' 
+              ? 'Your microphone is ready for calls.' 
+              : 'Microphone access is needed to make calls.'}</p>
+            {micPermission !== 'granted' && (
+              <Button variant="outline" size="sm" onClick={requestMicPermission} className="w-fit">
+                <Mic className="mr-2 h-4 w-4" />
+                Allow Microphone Access
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+        
+        <Alert className={audioOutput === 'granted' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}>
+          {audioOutput === 'granted' ? 
+            <CheckCircle2 className="h-4 w-4 text-green-500" /> : 
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+          }
+          <AlertTitle>{audioOutput === 'granted' ? 'Speaker Access Granted' : 'Speaker Test Recommended'}</AlertTitle>
+          <AlertDescription className="flex flex-col space-y-2">
+            <p>{audioOutput === 'granted' 
+              ? 'Your speaker is ready for calls.' 
+              : 'Testing your speaker is recommended before making calls.'}</p>
+            <Button variant="outline" size="sm" onClick={testAudioOutput} className="w-fit">
+              <Volume2 className="mr-2 h-4 w-4" />
+              Test Speaker
+            </Button>
+          </AlertDescription>
+        </Alert>
+      </div>
+
       {!isTwilioSetup && (
         <Alert className="mb-4" variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -204,7 +336,7 @@ const CallInterface: React.FC = () => {
                 <Button 
                   onClick={startCall}
                   className="rounded-full h-12 w-12 bg-phoneb-success hover:bg-phoneb-success/90 flex items-center justify-center p-0"
-                  disabled={isLoading || !isTwilioSetup}
+                  disabled={isLoading || !isTwilioSetup || micPermission !== 'granted'}
                 >
                   {isLoading ? (
                     <div className="h-5 w-5 animate-spin rounded-full border-t-2 border-b-2 border-white"></div>

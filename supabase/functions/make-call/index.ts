@@ -8,10 +8,33 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// This function will generate TwiML for the call
+function generateTwiML() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="woman">Hello! This is a test call from your PhoneB application.</Say>
+  <Pause length="1"/>
+  <Say voice="woman">Press any key to end the call.</Say>
+  <Gather/>
+</Response>`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+  
+  // Handle TwiML requests - this is what Twilio calls to get instructions
+  const url = new URL(req.url);
+  if (url.pathname.endsWith('/twiml')) {
+    console.log("Serving TwiML response");
+    return new Response(generateTwiML(), { 
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/xml' 
+      }
+    });
   }
   
   try {
@@ -129,11 +152,17 @@ serve(async (req) => {
     const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
     
     try {
-      // Make the call using Twilio's TwiML
+      // Get the full URL to our TwiML endpoint
+      const baseUrl = req.url.split('/make-call')[0];
+      const twimlUrl = `${baseUrl}/make-call/twiml`;
+      
+      console.log("Using TwiML URL:", twimlUrl);
+      
+      // Make the call using Twilio's API with our TwiML endpoint
       const call = await twilioClient.calls.create({
         to: to,
         from: fromNumber,
-        url: 'https://handler.twilio.com/twiml/EH8ccdbd7f0b8fe34357da8ce87ebe5a16', // Default TwiML for hello world
+        url: twimlUrl, // Use our own TwiML endpoint
       });
       
       console.log("Call initiated, SID:", call.sid);
