@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Phone, LogOut, HelpCircle, Info } from 'lucide-react';
+import { Phone, LogOut, HelpCircle, Info, ExternalLink } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import twilioVoiceConfigImg from "/lovable-uploads/47596cdb-c9d2-493d-9a72-9952eaae5937.png";
+import twilioNumberConfigImg from "/lovable-uploads/e2e54000-37cc-4fdb-82e8-82d6042c300a.png";
 
 const AuthForm: React.FC = () => {
   const { login } = useTwilio();
@@ -56,50 +60,122 @@ const AuthForm: React.FC = () => {
             </div>
           </div>
           
-          <Popover>
-            <PopoverTrigger asChild>
+          <Sheet>
+            <SheetTrigger asChild>
               <Button variant="outline" size="icon">
                 <HelpCircle className="h-4 w-4" />
                 <span className="sr-only">Configuration Guide</span>
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-4" side="left">
-              <div className="space-y-4">
-                <h3 className="font-medium text-lg">Twilio Configuration Guide</h3>
-                <div className="space-y-2">
-                  <h4 className="font-medium">Step 1: Find Your Credentials</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Log in to your Twilio account and find your Account SID and Auth Token on the dashboard.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-medium">Step 2: Configure Webhooks</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Set up your Twilio phone number to use the webhook URL for Voice and SMS:
-                  </p>
-                  <code className="text-xs bg-muted p-2 rounded block overflow-x-auto">
-                    {webhookUrl}
-                  </code>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-medium">Step 3: TwiML Configuration</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Create a TwiML Bin in your Twilio account with basic call handling instructions.
-                  </p>
-                </div>
-                <div className="mt-4">
-                  <a 
-                    href="https://www.twilio.com/console/phone-numbers/incoming" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-sm text-phoneb-primary hover:underline"
-                  >
-                    Open Twilio Console →
-                  </a>
-                </div>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto w-full sm:max-w-lg">
+              <SheetHeader>
+                <SheetTitle>Twilio Configuration Guide</SheetTitle>
+                <SheetDescription>
+                  Follow these steps to configure your Twilio account with PhoneB
+                </SheetDescription>
+              </SheetHeader>
+              
+              <Tabs defaultValue="step1" className="mt-6">
+                <TabsList className="grid grid-cols-3">
+                  <TabsTrigger value="step1">Credentials</TabsTrigger>
+                  <TabsTrigger value="step2">Webhooks</TabsTrigger>
+                  <TabsTrigger value="step3">Phone Number</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="step1" className="space-y-4 mt-4">
+                  <h3 className="font-medium text-lg">Step 1: Find Your Credentials</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Log in to your Twilio account and find your Account SID and Auth Token on the dashboard. These are required to connect PhoneB to your Twilio account.
+                    </p>
+                    <Alert className="mt-2">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        You can find your Account SID and Auth Token in your 
+                        <a 
+                          href="https://www.twilio.com/console" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-phoneb-primary hover:underline ml-1 inline-flex items-center"
+                        >
+                          Twilio Dashboard
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="step2" className="space-y-4 mt-4">
+                  <h3 className="font-medium text-lg">Step 2: Configure Webhooks</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Set up your Twilio phone number to use the webhook URL for Voice and SMS. After logging in with your Twilio credentials, you'll see your webhook URL which should be configured in the Twilio console.
+                    </p>
+                    
+                    <div className="bg-muted p-2 rounded text-xs font-mono break-all">
+                      {webhookUrl}
+                    </div>
+                    
+                    <p className="text-sm mt-4 font-medium">Here's how to configure your webhooks:</p>
+                    <ol className="list-decimal pl-5 text-sm space-y-2">
+                      <li>Go to the Phone Numbers section in your Twilio console</li>
+                      <li>Select your phone number</li>
+                      <li>In the Voice & Fax section, set the webhook URL for "A call comes in"</li>
+                      <li>In the Messaging section, set the webhook URL for "A message comes in"</li>
+                      <li>For both, select "HTTP POST" as the method</li>
+                    </ol>
+                    
+                    <div className="mt-4 border rounded">
+                      <p className="p-2 bg-muted text-sm font-medium">Example Configuration:</p>
+                      <img 
+                        src={twilioVoiceConfigImg} 
+                        alt="Twilio Voice Configuration Example" 
+                        className="w-full rounded-b" 
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="step3" className="space-y-4 mt-4">
+                  <h3 className="font-medium text-lg">Step 3: Phone Number Configuration</h3>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Verify that your phone number has the correct webhook configurations for both Voice and SMS.
+                    </p>
+                    
+                    <div className="mt-4 border rounded">
+                      <p className="p-2 bg-muted text-sm font-medium">Example Phone Number Configuration:</p>
+                      <img 
+                        src={twilioNumberConfigImg} 
+                        alt="Twilio Phone Number Configuration" 
+                        className="w-full rounded-b" 
+                      />
+                    </div>
+                    
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Make sure the Webhook URL is correctly set for both Voice and Messaging. This will ensure that PhoneB can properly handle all incoming calls and messages.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </TabsContent>
+              </Tabs>
+              
+              <div className="mt-8">
+                <a 
+                  href="https://www.twilio.com/console/phone-numbers/incoming" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center text-sm text-phoneb-primary hover:underline"
+                >
+                  Open Twilio Console to Configure Your Number
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </div>
-            </PopoverContent>
-          </Popover>
+            </SheetContent>
+          </Sheet>
         </div>
         <CardTitle className="text-2xl font-bold text-center">Welcome to PhoneB</CardTitle>
         <CardDescription className="text-center">
