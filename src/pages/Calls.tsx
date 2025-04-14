@@ -13,7 +13,7 @@ const Calls = () => {
       <h1 className="text-2xl font-bold">Make a Call</h1>
       
       {isTwilioSetup && (
-        <Alert className="mb-4">
+        <Alert variant="default" className="mb-4">
           <Info className="h-4 w-4" />
           <AlertTitle>Ready to Call</AlertTitle>
           <AlertDescription>
