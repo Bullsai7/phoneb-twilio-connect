@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
@@ -24,11 +23,8 @@ export const useCallManagement = (micPermission: PermissionStatus, isTwilioSetup
 
   const startCallTimer = () => {
     const interval = setInterval(() => {
-      // Explicitly update the duration by passing a function to setCallDuration
-      setCallDuration(prevDuration => {
-        // Ensure we're returning a number
-        return prevDuration + 1;
-      });
+      // Directly set the incremented value instead of using a callback function
+      setCallDuration(callDuration + 1);
     }, 1000);
     // @ts-ignore
     window.callInterval = interval;
