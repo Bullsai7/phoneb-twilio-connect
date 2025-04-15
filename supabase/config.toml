@@ -9,3 +9,6 @@ verify_jwt = true
 
 [functions.handle-webhooks]
 verify_jwt = false
+
+[functions.get-twilio-token]
+verify_jwt = true

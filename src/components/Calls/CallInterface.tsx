@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Phone, 
@@ -21,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useTwilio } from '@/context/TwilioContext';
 import { Link } from 'react-router-dom';
+import { Device } from 'twilio-client';
 
 const CallInterface: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -36,6 +36,11 @@ const CallInterface: React.FC = () => {
   const { session } = useSupabaseAuth();
   const { isAuthenticated: isTwilioSetup } = useTwilio();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [device, setDevice] = useState<any>(null);
+  const [connection, setConnection] = useState<any>(null);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [incomingCallFrom, setIncomingCallFrom] = useState('');
 
   // Check for microphone and speaker permissions on mount
   useEffect(() => {
@@ -221,8 +226,98 @@ const CallInterface: React.FC = () => {
     }
   };
 
+  // Initialize Twilio Device when component mounts
+  useEffect(() => {
+    const setupTwilioDevice = async () => {
+      if (!session?.access_token || !isTwilioSetup) return;
+
+      try {
+        // Get Twilio token from our edge function
+        const { data, error } = await supabase.functions.invoke('get-twilio-token', {
+          headers: session?.access_token 
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined
+        });
+
+        if (error) throw error;
+
+        // Create Twilio Device
+        const newDevice = new Device(data.token);
+
+        // Handle incoming calls
+        newDevice.on('incoming', (conn) => {
+          setIsIncomingCall(true);
+          setIncomingCallFrom(conn.parameters.From || 'Unknown');
+          setConnection(conn);
+          
+          // Auto-accept call after microphone permission
+          if (micPermission === 'granted') {
+            conn.accept();
+            setIsCallActive(true);
+            setCallTo(conn.parameters.From || 'Unknown');
+            startCallTimer();
+          } else {
+            toast.error("Microphone access required to accept calls");
+            requestMicPermission();
+          }
+        });
+
+        newDevice.on('error', (error) => {
+          console.error('Twilio device error:', error);
+          toast.error("Error with phone connection: " + error.message);
+        });
+
+        setDevice(newDevice);
+      } catch (error) {
+        console.error('Error setting up Twilio device:', error);
+        toast.error("Failed to initialize phone connection");
+      }
+    };
+
+    setupTwilioDevice();
+
+    return () => {
+      if (device) {
+        device.destroy();
+      }
+    };
+  }, [session, isTwilioSetup, micPermission]);
+
+  const startCallTimer = () => {
+    const interval = setInterval(() => {
+      setCallDuration(prev => prev + 1);
+    }, 1000);
+    // @ts-ignore
+    window.callInterval = interval;
+  };
+
+  const handleAcceptCall = () => {
+    if (connection) {
+      connection.accept();
+      setIsCallActive(true);
+      setIsIncomingCall(false);
+      startCallTimer();
+      toast.success(`Connected with ${incomingCallFrom}`);
+    }
+  };
+
+  const handleRejectCall = () => {
+    if (connection) {
+      connection.reject();
+      setIsIncomingCall(false);
+      setConnection(null);
+      toast.info(`Rejected call from ${incomingCallFrom}`);
+    }
+  };
+
+  // Modify the endCall function to handle both outgoing and incoming calls
   const endCall = () => {
+    if (connection) {
+      connection.disconnect();
+      setConnection(null);
+    }
     setIsCallActive(false);
+    setIsIncomingCall(false);
     setIsMuted(false);
     setIsSpeakerOn(false);
     
@@ -319,6 +414,38 @@ const CallInterface: React.FC = () => {
             {errorDetails}
           </AlertDescription>
         </Alert>
+      )}
+
+      {isIncomingCall && !isCallActive && (
+        <Card className="mb-4 bg-blue-50 border-blue-200">
+          <CardContent className="pt-6 pb-6 space-y-4">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="h-20 w-20 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
+                <Phone className="h-10 w-10 text-blue-600" />
+              </div>
+              <div className="text-center">
+                <h2 className="text-xl font-semibold">Incoming Call</h2>
+                <p className="text-gray-600">{incomingCallFrom}</p>
+              </div>
+            </div>
+            
+            <div className="flex justify-center space-x-4">
+              <Button
+                className="rounded-full h-14 w-14 bg-green-500 hover:bg-green-600 flex items-center justify-center p-0"
+                onClick={handleAcceptCall}
+              >
+                <Phone className="h-6 w-6" />
+              </Button>
+              
+              <Button
+                className="rounded-full h-14 w-14 bg-red-500 hover:bg-red-600 flex items-center justify-center p-0"
+                onClick={handleRejectCall}
+              >
+                <PhoneOff className="h-6 w-6" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {!isCallActive ? (
