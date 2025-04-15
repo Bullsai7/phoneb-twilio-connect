@@ -22,6 +22,7 @@ export const usePhoneNumber = () => {
   };
 
   const handleDigitClick = (digit: string) => {
+    // Set the new phone number directly as a string rather than using a function
     const newPhoneNumber = formatPhoneNumber(phoneNumber + digit);
     setPhoneNumber(newPhoneNumber);
   };

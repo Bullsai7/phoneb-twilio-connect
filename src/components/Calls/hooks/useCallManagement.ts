@@ -24,7 +24,8 @@ export const useCallManagement = (micPermission: PermissionStatus, isTwilioSetup
 
   const startCallTimer = () => {
     const interval = setInterval(() => {
-      setCallDuration(prev => prev + 1);
+      // Fix: Explicitly type the previous value as a number and return a number
+      setCallDuration((prev: number) => prev + 1);
     }, 1000);
     // @ts-ignore
     window.callInterval = interval;
