@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Phone, 
@@ -119,11 +118,11 @@ const CallInterface: React.FC = () => {
           setAudioOutput('denied');
           toast.error("Speaker test failed. Please check your browser settings.");
         });
-    } catch (error) {
-      console.error("Error testing audio output:", error);
-      toast.error("Error testing audio output");
-    }
-  };
+      } catch (error) {
+        console.error("Error testing audio output:", error);
+        toast.error("Error testing audio output");
+      }
+    };
 
   const formatPhoneNumber = (value: string) => {
     // Remove non-numeric characters
@@ -245,7 +244,7 @@ const CallInterface: React.FC = () => {
         // Create Twilio Device - using Voice SDK instead of twilio-client
         const newDevice = new Device(data.token, {
           logLevel: 1, // Info
-          codecPreferences: ['opus', 'pcmu']
+          codecPreferences: ['opus', 'pcmu'] as any // Type assertion to avoid type error
         });
 
         // Handle incoming calls
