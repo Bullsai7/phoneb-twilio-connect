@@ -57,6 +57,8 @@ export function useHistory(): UseHistoryReturn {
     setError(null);
 
     try {
+      console.log('Fetching history for user:', user.id);
+      
       // Fetch call history
       const { data: callData, error: callError } = await supabase
         .from('call_history')
@@ -67,6 +69,8 @@ export function useHistory(): UseHistoryReturn {
       if (callError) {
         throw new Error(`Error fetching call history: ${callError.message}`);
       }
+
+      console.log('Call history data:', callData);
 
       // Fetch message history
       const { data: messageData, error: messageError } = await supabase
@@ -79,9 +83,18 @@ export function useHistory(): UseHistoryReturn {
         throw new Error(`Error fetching message history: ${messageError.message}`);
       }
 
+      console.log('Message history data:', messageData);
+
       // Transform and validate call data
       const validatedCallData: CallHistoryItem[] = (callData || [])
-        .filter(call => isValidDirection(call.direction) && isValidStatus(call.status))
+        .filter(call => {
+          // Log if a record is being filtered out
+          if (!isValidDirection(call.direction) || !isValidStatus(call.status)) {
+            console.log('Filtering out invalid call record:', call);
+            return false;
+          }
+          return true;
+        })
         .map(call => ({
           id: call.id,
           phone_number: call.phone_number,
@@ -94,7 +107,14 @@ export function useHistory(): UseHistoryReturn {
 
       // Transform and validate message data
       const validatedMessageData: MessageHistoryItem[] = (messageData || [])
-        .filter(message => isValidDirection(message.direction))
+        .filter(message => {
+          // Log if a record is being filtered out
+          if (!isValidDirection(message.direction)) {
+            console.log('Filtering out invalid message record:', message);
+            return false;
+          }
+          return true;
+        })
         .map(message => ({
           id: message.id,
           phone_number: message.phone_number,
@@ -103,6 +123,9 @@ export function useHistory(): UseHistoryReturn {
           direction: message.direction as 'incoming' | 'outgoing',
           content: message.content
         }));
+
+      console.log('Validated call history:', validatedCallData.length, 'items');
+      console.log('Validated message history:', validatedMessageData.length, 'items');
 
       setCallHistory(validatedCallData);
       setMessageHistory(validatedMessageData);
