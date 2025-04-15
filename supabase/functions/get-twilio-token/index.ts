@@ -61,21 +61,31 @@ serve(async (req) => {
       authToken = profileData[0].twilio_auth_token;
     }
 
-    // Generate Twilio Client token
-    const twilioClient = twilio(accountSid, authToken);
-    const capability = new twilio.jwt.ClientCapability({
-      accountSid: accountSid,
-      authToken: authToken,
-    });
-
-    // Allow incoming calls
-    capability.addScope(new twilio.jwt.ClientCapability.IncomingClientScope('browser-client'));
+    // Generate Twilio access token for Voice SDK
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
     
-    // Generate token
-    const twilioToken = capability.toJwt();
+    // Create a Voice grant for this token
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: Deno.env.get('TWILIO_APP_SID'),
+      incomingAllow: true, // Allow incoming calls
+    });
+    
+    // Create an access token
+    const accessToken = new AccessToken(
+      accountSid,
+      authToken,
+      { identity: user.id, ttl: 3600 }
+    );
+    
+    // Add the voice grant to the token
+    accessToken.addGrant(voiceGrant);
+    
+    // Generate the token string
+    const tokenString = accessToken.toJwt();
 
     return new Response(
-      JSON.stringify({ token: twilioToken }),
+      JSON.stringify({ token: tokenString }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
     

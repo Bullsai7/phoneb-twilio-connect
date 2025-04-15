@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Phone, 
@@ -20,7 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useTwilio } from '@/context/TwilioContext';
 import { Link } from 'react-router-dom';
-import { Device } from 'twilio-client';
+import { Device } from '@twilio/voice-sdk';
 
 const CallInterface: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -207,7 +208,7 @@ const CallInterface: React.FC = () => {
       
       toast.success(`Calling ${phoneNumber}...`);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error making call:', error);
       const errorMessage = error.message || "Failed to make call";
       
@@ -241,20 +242,26 @@ const CallInterface: React.FC = () => {
 
         if (error) throw error;
 
-        // Create Twilio Device
-        const newDevice = new Device(data.token);
+        // Create Twilio Device - using Voice SDK instead of twilio-client
+        const newDevice = new Device(data.token, {
+          logLevel: 1, // Info
+          codecPreferences: ['opus', 'pcmu']
+        });
 
         // Handle incoming calls
         newDevice.on('incoming', (conn) => {
+          console.log('Incoming call received');
           setIsIncomingCall(true);
-          setIncomingCallFrom(conn.parameters.From || 'Unknown');
+          // Get the caller information from parameters
+          const from = conn.customParameters.get('From') || 'Unknown';
+          setIncomingCallFrom(from);
           setConnection(conn);
           
           // Auto-accept call after microphone permission
           if (micPermission === 'granted') {
             conn.accept();
             setIsCallActive(true);
-            setCallTo(conn.parameters.From || 'Unknown');
+            setCallTo(from);
             startCallTimer();
           } else {
             toast.error("Microphone access required to accept calls");
@@ -267,10 +274,13 @@ const CallInterface: React.FC = () => {
           toast.error("Error with phone connection: " + error.message);
         });
 
+        await newDevice.register();
+        console.log('Twilio device registered successfully');
+        
         setDevice(newDevice);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error setting up Twilio device:', error);
-        toast.error("Failed to initialize phone connection");
+        toast.error("Failed to initialize phone connection: " + error.message);
       }
     };
 
@@ -335,11 +345,19 @@ const CallInterface: React.FC = () => {
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
+    if (connection) {
+      if (isMuted) {
+        connection.mute(false);
+      } else {
+        connection.mute(true);
+      }
+    }
     toast.info(isMuted ? "Microphone unmuted" : "Microphone muted");
   };
 
   const toggleSpeaker = () => {
     setIsSpeakerOn(!isSpeakerOn);
+    // In a full implementation, you would switch audio output devices here
     toast.info(isSpeakerOn ? "Speaker off" : "Speaker on");
   };
 
