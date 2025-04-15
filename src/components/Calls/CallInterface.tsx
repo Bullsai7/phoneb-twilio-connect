@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings, AlertTriangle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -262,6 +261,12 @@ const CallInterfaceContent = () => {
     }
   };
 
+  // Fix: Replace the lambda function with a direct string concatenation approach
+  const handleDigitClick = (digit: string) => {
+    const newPhoneNumber = formatPhoneNumber(phoneNumber + digit);
+    setPhoneNumber(newPhoneNumber);
+  };
+
   return (
     <div className="max-w-md mx-auto">
       <AudioPermissions
@@ -310,7 +315,7 @@ const CallInterfaceContent = () => {
           onStartCall={startCall}
           isLoading={isLoading}
           disabled={!isTwilioSetup || micPermission !== 'granted'}
-          onDigitClick={(digit) => setPhoneNumber(prev => formatPhoneNumber(prev + digit))}
+          onDigitClick={handleDigitClick}
         />
       ) : (
         <ActiveCall
