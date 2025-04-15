@@ -39,6 +39,8 @@ serve(async (req) => {
       );
     }
 
+    console.log("Generating token for user:", user.id);
+
     // Get Twilio credentials
     let accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     let authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
@@ -71,11 +73,18 @@ serve(async (req) => {
       incomingAllow: true, // Allow incoming calls
     });
     
-    // Create an access token
+    // Create an access token - the identity MUST be a string
+    const tokenOptions = {
+      identity: user.id.toString(), // Fix: ensure identity is a string value
+      ttl: 3600
+    };
+    
+    console.log("Creating token with options:", JSON.stringify(tokenOptions));
+    
     const accessToken = new AccessToken(
       accountSid,
       authToken,
-      { identity: user.id, ttl: 3600 }
+      tokenOptions
     );
     
     // Add the voice grant to the token
@@ -83,6 +92,8 @@ serve(async (req) => {
     
     // Generate the token string
     const tokenString = accessToken.toJwt();
+    
+    console.log("Successfully generated token");
 
     return new Response(
       JSON.stringify({ token: tokenString }),
