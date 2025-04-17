@@ -1,4 +1,5 @@
 
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,11 +14,10 @@ import Calls from "./pages/Calls";
 import Messages from "./pages/Messages";
 import History from "./pages/History";
 import NotFound from "./pages/NotFound";
-import React from "react";
 
-const App = () => {
-  // Create a new instance of QueryClient inside the component
-  const [queryClient] = React.useState(() => new QueryClient());
+const App: React.FC = () => {
+  // Create a new instance of QueryClient
+  const queryClient = new QueryClient();
 
   return (
     <QueryClientProvider client={queryClient}>
