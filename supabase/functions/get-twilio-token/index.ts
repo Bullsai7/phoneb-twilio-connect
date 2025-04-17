@@ -42,43 +42,98 @@ serve(async (req) => {
     }
 
     console.log("Generating token for user:", user.id);
-
-    // Get Twilio credentials
-    let accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
-    let authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-    let applicationSid = Deno.env.get('TWILIO_APP_SID');
     
-    if (!accountSid || !authToken) {
-      console.log("No Twilio credentials in environment, fetching from profile");
-      // If not in env, get from user profile
-      const { data: profileData, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('twilio_account_sid, twilio_auth_token, twilio_app_sid')
-        .eq('id', user.id)
+    // Parse request body if it exists
+    let requestBody = {};
+    if (req.body) {
+      try {
+        requestBody = await req.json();
+      } catch (e) {
+        console.log("No request body or invalid JSON");
+      }
+    }
+    
+    // Check if a specific Twilio account ID is provided
+    const accountId = requestBody.accountId;
+    let accountSid, authToken, applicationSid;
+    
+    if (accountId) {
+      console.log("Using specific Twilio account:", accountId);
+      
+      // Get credentials for the specified Twilio account
+      const { data: accountData, error: accountError } = await supabaseClient
+        .from('twilio_accounts')
+        .select('account_sid, auth_token, app_sid')
+        .eq('id', accountId)
+        .eq('user_id', user.id)
         .single();
       
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
+      if (accountError || !accountData) {
+        console.error('Error fetching Twilio account:', accountError);
         return new Response(
-          JSON.stringify({ error: 'Error fetching Twilio credentials' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
-      }
-      
-      if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token) {
-        console.error('No Twilio credentials found in profile');
-        return new Response(
-          JSON.stringify({ error: 'Twilio credentials not found' }),
+          JSON.stringify({ error: 'Specified Twilio account not found' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
       }
       
-      accountSid = profileData.twilio_account_sid;
-      authToken = profileData.twilio_auth_token;
+      accountSid = accountData.account_sid;
+      authToken = accountData.auth_token;
+      applicationSid = accountData.app_sid;
+    } else {
+      // No specific account ID provided, use environment variables or default account
+      accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+      authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+      applicationSid = Deno.env.get('TWILIO_APP_SID');
       
-      // If application SID exists in profile, use it
-      if (profileData.twilio_app_sid) {
-        applicationSid = profileData.twilio_app_sid;
+      if (!accountSid || !authToken) {
+        console.log("No Twilio credentials in environment, fetching from profile or default account");
+        
+        // Try to get the default account first
+        const { data: defaultAccount, error: defaultError } = await supabaseClient
+          .from('twilio_accounts')
+          .select('account_sid, auth_token, app_sid')
+          .eq('user_id', user.id)
+          .eq('is_default', true)
+          .maybeSingle();
+        
+        if (!defaultError && defaultAccount) {
+          console.log("Using default Twilio account");
+          accountSid = defaultAccount.account_sid;
+          authToken = defaultAccount.auth_token;
+          applicationSid = defaultAccount.app_sid;
+        } else {
+          // If no default account, try the user profile
+          console.log("No default account, checking profile");
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('twilio_account_sid, twilio_auth_token, twilio_app_sid')
+            .eq('id', user.id)
+            .single();
+          
+          if (profileError) {
+            console.error('Error fetching profile:', profileError);
+            return new Response(
+              JSON.stringify({ error: 'Error fetching Twilio credentials' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+            );
+          }
+          
+          if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token) {
+            console.error('No Twilio credentials found in profile');
+            return new Response(
+              JSON.stringify({ error: 'Twilio credentials not found' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            );
+          }
+          
+          accountSid = profileData.twilio_account_sid;
+          authToken = profileData.twilio_auth_token;
+          
+          // If application SID exists in profile, use it
+          if (profileData.twilio_app_sid) {
+            applicationSid = profileData.twilio_app_sid;
+          }
+        }
       }
     }
     

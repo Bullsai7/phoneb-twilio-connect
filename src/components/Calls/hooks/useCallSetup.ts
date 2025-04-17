@@ -6,7 +6,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { toast } from "sonner";
 
-export const useCallSetup = (micPermission: string) => {
+export interface TwilioAccount {
+  id: string;
+  account_name: string;
+  account_sid: string;
+  auth_token: string;
+  app_sid: string | null;
+  phone_number: string | null;
+  is_default: boolean;
+}
+
+export const useCallSetup = (micPermission: string, selectedAccountId?: string) => {
   const { session } = useSupabaseAuth();
   const [isInitializing, setIsInitializing] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
@@ -34,7 +44,12 @@ export const useCallSetup = (micPermission: string) => {
         setSetupError(null);
         
         console.log("Requesting Twilio token...");
+        
+        // Pass the selected account ID if available
+        const requestBody = selectedAccountId ? { accountId: selectedAccountId } : {};
+        
         const { data, error } = await supabase.functions.invoke('get-twilio-token', {
+          body: requestBody,
           headers: { Authorization: `Bearer ${session.access_token}` }
         });
 
@@ -113,7 +128,7 @@ export const useCallSetup = (micPermission: string) => {
       }
       setDevice(null);
     };
-  }, [session, micPermission]);
+  }, [session, micPermission, selectedAccountId]);
 
   return {
     isInitializing,

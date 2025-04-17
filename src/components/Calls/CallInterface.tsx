@@ -1,8 +1,9 @@
 
-import React, { useEffect } from 'react';
-import { Settings } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Settings, PhoneForwarded } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from 'react-router-dom';
 import { useTwilio } from '@/context/TwilioContext';
 import AudioPermissions from './AudioPermissions';
@@ -10,13 +11,17 @@ import DialPad from './DialPad';
 import IncomingCall from './IncomingCall';
 import ActiveCall from './ActiveCall';
 import { CallProvider, useCallContext } from './CallContext';
-import { useCallSetup } from './hooks/useCallSetup';
+import { useCallSetup, TwilioAccount } from './hooks/useCallSetup';
 import { useAudioPermissions } from './hooks/useAudioPermissions';
 import { usePhoneNumber } from './hooks/usePhoneNumber';
 import { useCallManagement } from './hooks/useCallManagement';
+import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
 
 const CallInterfaceContent = () => {
   const { isAuthenticated: isTwilioSetup } = useTwilio();
+  const { accounts, defaultAccount } = useTwilioAccounts();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  
   const {
     micPermission,
     audioOutput,
@@ -39,7 +44,7 @@ const CallInterfaceContent = () => {
     handleRejectCall,
     endCall,
     formatDuration
-  } = useCallManagement(micPermission, isTwilioSetup);
+  } = useCallManagement(micPermission, isTwilioSetup, selectedAccountId);
 
   const {
     isCallActive,
@@ -53,8 +58,15 @@ const CallInterfaceContent = () => {
     setIsSpeakerOn,
   } = useCallContext();
 
+  // Set selected account to default on initial load
+  useEffect(() => {
+    if (defaultAccount && !selectedAccountId) {
+      setSelectedAccountId(defaultAccount.id);
+    }
+  }, [defaultAccount]);
+
   // Set up Twilio device
-  useCallSetup(micPermission);
+  useCallSetup(micPermission, selectedAccountId);
 
   // Check for microphone and speaker permissions on mount
   useEffect(() => {
@@ -64,6 +76,9 @@ const CallInterfaceContent = () => {
   const handleStartCall = () => startCall(phoneNumber);
   const toggleMute = () => setIsMuted(!isMuted);
   const toggleSpeaker = () => setIsSpeakerOn(!isSpeakerOn);
+
+  // Finding the currently selected account
+  const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
 
   return (
     <div className="max-w-md mx-auto">
@@ -87,6 +102,34 @@ const CallInterfaceContent = () => {
         </Alert>
       )}
 
+      {accounts.length > 0 && (
+        <div className="mb-4">
+          <Select 
+            value={selectedAccountId || ''} 
+            onValueChange={(value) => setSelectedAccountId(value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select Twilio account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map(account => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.account_name}
+                  {account.is_default ? " (Default)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {selectedAccount?.phone_number && (
+            <div className="mt-2 text-sm text-muted-foreground flex items-center">
+              <PhoneForwarded className="h-3 w-3 mr-1" />
+              Calling from: {selectedAccount.phone_number}
+            </div>
+          )}
+        </div>
+      )}
+
       {errorDetails && (
         <Alert className="mb-4" variant="destructive">
           <AlertTitle>Call Error</AlertTitle>
@@ -108,7 +151,7 @@ const CallInterfaceContent = () => {
           onPhoneNumberChange={handlePhoneNumberChange}
           onStartCall={handleStartCall}
           isLoading={isLoading}
-          disabled={!isTwilioSetup || micPermission !== 'granted'}
+          disabled={!isTwilioSetup || micPermission !== 'granted' || !selectedAccountId}
           onDigitClick={handleDigitClick}
         />
       ) : (

@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
@@ -5,7 +6,11 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useCallContext } from '../CallContext';
 import { PermissionStatus } from './useAudioPermissions';
 
-export const useCallManagement = (micPermission: PermissionStatus, isTwilioSetup: boolean) => {
+export const useCallManagement = (
+  micPermission: PermissionStatus, 
+  isTwilioSetup: boolean,
+  selectedAccountId?: string | null
+) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const { session } = useSupabaseAuth();
@@ -68,8 +73,15 @@ export const useCallManagement = (micPermission: PermissionStatus, isTwilioSetup
     setIsLoading(true);
     
     try {
+      const requestBody: { to: string; accountId?: string } = { to: numericValue };
+      
+      // Add the account ID to the request if specified
+      if (selectedAccountId) {
+        requestBody.accountId = selectedAccountId;
+      }
+      
       const { data, error } = await supabase.functions.invoke('make-call', {
-        body: { to: numericValue },
+        body: requestBody,
         headers: session?.access_token 
           ? { Authorization: `Bearer ${session.access_token}` }
           : undefined

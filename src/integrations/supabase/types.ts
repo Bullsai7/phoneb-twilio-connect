@@ -18,6 +18,7 @@ export type Database = {
           phone_number: string
           status: string
           timestamp: string
+          twilio_account_sid: string | null
           twilio_call_sid: string | null
           user_id: string
         }
@@ -29,6 +30,7 @@ export type Database = {
           phone_number: string
           status: string
           timestamp?: string
+          twilio_account_sid?: string | null
           twilio_call_sid?: string | null
           user_id: string
         }
@@ -40,7 +42,50 @@ export type Database = {
           phone_number?: string
           status?: string
           timestamp?: string
+          twilio_account_sid?: string | null
           twilio_call_sid?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          company: string | null
+          contact_type: string | null
+          created_at: string
+          email: string | null
+          favorite: boolean
+          id: string
+          last_contacted: string | null
+          name: string | null
+          notes: string | null
+          phone_number: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          contact_type?: string | null
+          created_at?: string
+          email?: string | null
+          favorite?: boolean
+          id?: string
+          last_contacted?: string | null
+          name?: string | null
+          notes?: string | null
+          phone_number: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          contact_type?: string | null
+          created_at?: string
+          email?: string | null
+          favorite?: boolean
+          id?: string
+          last_contacted?: string | null
+          name?: string | null
+          notes?: string | null
+          phone_number?: string
           user_id?: string
         }
         Relationships: []
@@ -53,6 +98,7 @@ export type Database = {
           id: string
           phone_number: string
           timestamp: string
+          twilio_account_sid: string | null
           twilio_message_sid: string | null
           user_id: string
         }
@@ -63,6 +109,7 @@ export type Database = {
           id?: string
           phone_number: string
           timestamp?: string
+          twilio_account_sid?: string | null
           twilio_message_sid?: string | null
           user_id: string
         }
@@ -73,6 +120,7 @@ export type Database = {
           id?: string
           phone_number?: string
           timestamp?: string
+          twilio_account_sid?: string | null
           twilio_message_sid?: string | null
           user_id?: string
         }
@@ -83,22 +131,64 @@ export type Database = {
           created_at: string
           id: string
           twilio_account_sid: string | null
+          twilio_app_sid: string | null
           twilio_auth_token: string | null
+          twilio_phone_number: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           id: string
           twilio_account_sid?: string | null
+          twilio_app_sid?: string | null
           twilio_auth_token?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           twilio_account_sid?: string | null
+          twilio_app_sid?: string | null
           twilio_auth_token?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      twilio_accounts: {
+        Row: {
+          account_name: string
+          account_sid: string
+          app_sid: string | null
+          auth_token: string
+          created_at: string
+          id: string
+          is_default: boolean
+          phone_number: string | null
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_sid: string
+          app_sid?: string | null
+          auth_token: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          phone_number?: string | null
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_sid?: string
+          app_sid?: string | null
+          auth_token?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          phone_number?: string | null
+          user_id?: string
         }
         Relationships: []
       }

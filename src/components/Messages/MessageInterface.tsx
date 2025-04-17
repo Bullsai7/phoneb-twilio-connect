@@ -1,269 +1,306 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Send, 
-  ChevronDown,
-  ChevronUp,
-  User
-} from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
-import { cn } from '@/lib/utils';
+import React, { useState, useEffect } from 'react';
+import { Send, RefreshCw, User, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useHistory, MessageHistoryItem } from '@/hooks/useHistory';
+import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
 
-interface Message {
-  id: number;
-  text: string;
-  sender: 'user' | 'contact';
-  timestamp: Date;
-}
-
-const MessageInterface: React.FC = () => {
+const MessageInterface = () => {
+  const { session } = useSupabaseAuth();
+  const { messageHistory, refreshHistory } = useHistory();
+  const { accounts, defaultAccount } = useTwilioAccounts();
+  
   const [phoneNumber, setPhoneNumber] = useState('');
   const [message, setMessage] = useState('');
-  const [showMessageForm, setShowMessageForm] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [currentContact, setCurrentContact] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const { session } = useSupabaseAuth();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-
-  // Format phone number as user types
-  const formatPhoneNumber = (value: string) => {
-    // Remove non-numeric characters
-    const numericValue = value.replace(/\D/g, '');
-    
-    // Format the phone number (US format as an example)
-    let formattedValue = '';
-    if (numericValue.length <= 3) {
-      formattedValue = numericValue;
-    } else if (numericValue.length <= 6) {
-      formattedValue = `(${numericValue.slice(0, 3)}) ${numericValue.slice(3)}`;
-    } else {
-      formattedValue = `(${numericValue.slice(0, 3)}) ${numericValue.slice(3, 6)}-${numericValue.slice(6, 10)}`;
+  const [sending, setSending] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  
+  // Set selected account to default on initial load
+  useEffect(() => {
+    if (defaultAccount && !selectedAccountId) {
+      setSelectedAccountId(defaultAccount.id);
     }
-    
-    return formattedValue;
-  };
-
-  // Handle phone number input change
-  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhoneNumber(formatPhoneNumber(e.target.value));
-  };
-
-  // Start new conversation
-  const startConversation = () => {
-    // Validate phone number
-    const numericValue = phoneNumber.replace(/\D/g, '');
-    if (numericValue.length < 10) {
-      toast.error("Please enter a valid phone number");
-      return;
+  }, [defaultAccount]);
+  
+  // Group messages by phone number
+  const messagesByPhone: Record<string, MessageHistoryItem[]> = {};
+  messageHistory.forEach(msg => {
+    if (!messagesByPhone[msg.phone_number]) {
+      messagesByPhone[msg.phone_number] = [];
     }
-
-    setCurrentContact(phoneNumber);
-    setShowMessageForm(true);
-    
-    // Clear previous conversation
-    setMessages([]);
-  };
-
-  // Send message
-  const sendMessage = async () => {
-    if (!message.trim()) {
-      toast.error("Please enter a message");
+    messagesByPhone[msg.phone_number].push(msg);
+  });
+  
+  // Get unique phone numbers sorted by most recent message
+  const conversationPhoneNumbers = Object.keys(messagesByPhone).sort((a, b) => {
+    const aLatest = messagesByPhone[a][0].timestamp;
+    const bLatest = messagesByPhone[b][0].timestamp;
+    return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+  });
+  
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  
+  // If user selects a conversation, populate the phone number field
+  useEffect(() => {
+    if (selectedConversation) {
+      setPhoneNumber(selectedConversation);
+    }
+  }, [selectedConversation]);
+  
+  const handleSendMessage = async () => {
+    if (!phoneNumber || !message) {
+      toast.error('Please enter a phone number and message');
       return;
     }
     
-    if (!currentContact) {
-      toast.error("No recipient selected");
+    if (!session) {
+      toast.error('You must be logged in to send messages');
       return;
     }
-
-    // Add message to UI
-    const newMessage: Message = {
-      id: Date.now(),
-      text: message,
-      sender: 'user',
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, newMessage]);
     
-    // Store the message text and clear the input
-    const messageToSend = message;
-    setMessage('');
-    
-    setIsLoading(true);
+    setSending(true);
     
     try {
-      // Get the phone number in numeric format
-      const numericValue = currentContact.replace(/\D/g, '');
+      const requestBody: { 
+        to: string; 
+        message: string; 
+        accountId?: string; 
+      } = { 
+        to: phoneNumber, 
+        message 
+      };
       
-      // Call the edge function to send the message
-      const { data, error } = await supabase.functions.invoke('send-message', {
-        body: { 
-          to: numericValue,
-          message: messageToSend
-        },
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`
-        }
-      });
-      
-      if (error) {
-        throw new Error(error.message);
+      // Add the account ID to the request if specified
+      if (selectedAccountId) {
+        requestBody.accountId = selectedAccountId;
       }
       
-      toast.success(`Message sent to ${currentContact}`);
+      const { data, error } = await supabase.functions.invoke('send-message', {
+        body: requestBody,
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
       
-    } catch (error) {
+      if (error) throw new Error(error.message);
+      
+      toast.success('Message sent successfully!');
+      setMessage('');
+      
+      // Update the selected conversation
+      setSelectedConversation(phoneNumber);
+      
+      // Refresh history to show the new message
+      refreshHistory();
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast.error(`Failed to send message: ${error.message}`);
     } finally {
-      setIsLoading(false);
+      setSending(false);
     }
   };
-
-  // Close conversation and return to phone number input
-  const closeConversation = () => {
-    setShowMessageForm(false);
-    setCurrentContact(null);
-  };
-
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  // Format timestamp for messages
-  const formatTimestamp = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
+  
+  // Find the selected account
+  const selectedAccount = accounts.find(acc => acc.id === selectedAccountId);
+  
+  // Get the messages for the selected conversation
+  const currentConversation = selectedConversation
+    ? messagesByPhone[selectedConversation].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      )
+    : [];
+  
   return (
-    <div className="max-w-md mx-auto">
-      <Card className="h-full">
-        <CardHeader className="p-4 border-b">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">
-              {showMessageForm ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="h-4 w-4 text-gray-600" />
-                  </div>
-                  <span>{currentContact}</span>
-                </div>
-              ) : (
-                "New Message"
-              )}
-            </CardTitle>
-            {showMessageForm && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={closeConversation}
-                className="h-8 w-8 p-0"
-              >
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            )}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-200px)]">
+      {/* Conversations Sidebar */}
+      <Card className="col-span-1 h-full flex flex-col">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-lg">Conversations</h3>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              onClick={refreshHistory} 
+              title="Refresh conversations"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
-        
-        <CardContent className="p-0">
-          {!showMessageForm ? (
-            <div className="p-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="phoneNumber">To</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="phoneNumber"
-                    placeholder="Phone number"
-                    value={phoneNumber}
-                    onChange={handlePhoneNumberChange}
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={startConversation}
-                    disabled={!phoneNumber}
-                    className="bg-phoneb-primary hover:bg-phoneb-primary/90"
+        <CardContent className="overflow-y-auto flex-grow pb-0">
+          {conversationPhoneNumbers.length > 0 ? (
+            <div className="space-y-2">
+              {conversationPhoneNumbers.map(phone => {
+                const latestMessage = messagesByPhone[phone][0];
+                const contactName = latestMessage.contact_name || phone;
+                return (
+                  <div
+                    key={phone}
+                    className={`p-3 rounded-md cursor-pointer transition-colors ${
+                      selectedConversation === phone
+                        ? 'bg-muted'
+                        : 'hover:bg-muted/50'
+                    }`}
+                    onClick={() => setSelectedConversation(phone)}
                   >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+                    <div className="flex items-center space-x-3">
+                      <Avatar>
+                        <AvatarFallback>
+                          <User className="h-5 w-5" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 overflow-hidden">
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-medium truncate">{contactName}</h4>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(latestMessage.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {latestMessage.content}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <div className="flex flex-col h-[500px]">
-              <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-                <div className="space-y-4">
-                  {messages.length > 0 ? (
-                    messages.map((msg) => (
-                      <div 
-                        key={msg.id} 
-                        className={cn(
-                          "max-w-[80%] rounded-lg p-3 relative",
-                          msg.sender === 'user' 
-                            ? "bg-phoneb-primary text-white ml-auto" 
-                            : "bg-gray-200 text-gray-800"
-                        )}
-                      >
-                        <p>{msg.text}</p>
-                        <span className={cn(
-                          "text-xs absolute bottom-1 right-2",
-                          msg.sender === 'user' ? "text-white/70" : "text-gray-500"
-                        )}>
-                          {formatTimestamp(msg.timestamp)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      Start a conversation with {currentContact}
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-              
-              <div className="p-4 border-t">
-                <div className="flex items-center space-x-2">
-                  <Textarea
-                    placeholder="Type your message..."
-                    className="min-h-10 resize-none"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
-                    disabled={isLoading}
-                  />
-                  <Button 
-                    onClick={sendMessage}
-                    disabled={!message.trim() || isLoading}
-                    className="bg-phoneb-primary hover:bg-phoneb-primary/90 h-10 w-10 p-0 rounded-full flex items-center justify-center"
-                  >
-                    {isLoading ? (
-                      <div className="h-4 w-4 animate-spin rounded-full border-t-2 border-b-2 border-white"></div>
-                    ) : (
-                      <Send className="h-5 w-5" />
-                    )}
-                  </Button>
-                </div>
-              </div>
+            <div className="text-center py-4 text-muted-foreground">
+              No conversations yet
             </div>
           )}
         </CardContent>
+      </Card>
+      
+      {/* Message Content */}
+      <Card className="col-span-2 h-full flex flex-col">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex justify-between items-center">
+            <div>
+              {selectedConversation ? (
+                <div className="space-y-1">
+                  <h3 className="font-semibold">
+                    {messagesByPhone[selectedConversation][0].contact_name || selectedConversation}
+                  </h3>
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    <Phone className="h-3 w-3 mr-1" />
+                    <span>{selectedConversation}</span>
+                  </div>
+                </div>
+              ) : (
+                <h3 className="font-semibold">New Message</h3>
+              )}
+            </div>
+            
+            {accounts.length > 0 && (
+              <Select 
+                value={selectedAccountId || ''} 
+                onValueChange={(value) => setSelectedAccountId(value)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Select Twilio account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map(account => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.account_name}
+                      {account.is_default ? " (Default)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          
+          {!selectedConversation && (
+            <div className="mt-2">
+              <Input 
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Enter phone number"
+                type="tel"
+              />
+            </div>
+          )}
+          
+          {selectedAccount?.phone_number && (
+            <div className="text-xs text-muted-foreground">
+              Sending from: {selectedAccount.phone_number}
+            </div>
+          )}
+        </CardHeader>
+        
+        <CardContent className="overflow-y-auto flex-grow p-4">
+          {currentConversation.length > 0 ? (
+            <div className="space-y-4">
+              {currentConversation.map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div 
+                    className={`max-w-[80%] px-4 py-2 rounded-lg ${
+                      msg.direction === 'outgoing' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <p>{msg.content}</p>
+                    <div className="text-xs mt-1 opacity-70 text-right">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : selectedConversation ? (
+            <div className="text-center py-10 text-muted-foreground">
+              No messages in this conversation yet.
+            </div>
+          ) : (
+            <div className="text-center py-10 text-muted-foreground">
+              Enter a phone number and message to start a conversation.
+            </div>
+          )}
+        </CardContent>
+        
+        <CardFooter className="border-t p-3">
+          <div className="flex w-full space-x-2">
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 resize-none"
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+            />
+            <Button 
+              onClick={handleSendMessage}
+              disabled={!phoneNumber || !message || sending || !selectedAccountId}
+              className="self-end"
+            >
+              {sending ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              <span className="ml-2 hidden sm:inline">Send</span>
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );
