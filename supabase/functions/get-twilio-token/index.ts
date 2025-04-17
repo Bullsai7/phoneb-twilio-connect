@@ -53,8 +53,9 @@ serve(async (req) => {
       // If not in env, get from user profile
       const { data: profileData, error: profileError } = await supabaseClient
         .from('profiles')
-        .select('twilio_account_sid, twilio_auth_token')
-        .eq('id', user.id);
+        .select('twilio_account_sid, twilio_auth_token, twilio_app_sid')
+        .eq('id', user.id)
+        .single();
       
       if (profileError) {
         console.error('Error fetching profile:', profileError);
@@ -64,7 +65,7 @@ serve(async (req) => {
         );
       }
       
-      if (!profileData?.length || !profileData[0].twilio_account_sid || !profileData[0].twilio_auth_token) {
+      if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token) {
         console.error('No Twilio credentials found in profile');
         return new Response(
           JSON.stringify({ error: 'Twilio credentials not found' }),
@@ -72,17 +73,22 @@ serve(async (req) => {
         );
       }
       
-      accountSid = profileData[0].twilio_account_sid;
-      authToken = profileData[0].twilio_auth_token;
+      accountSid = profileData.twilio_account_sid;
+      authToken = profileData.twilio_auth_token;
       
-      // If no application SID in environment, we can't proceed
-      if (!applicationSid) {
-        console.error('No Twilio Application SID found');
-        return new Response(
-          JSON.stringify({ error: 'Twilio Application SID not configured' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
+      // If application SID exists in profile, use it
+      if (profileData.twilio_app_sid) {
+        applicationSid = profileData.twilio_app_sid;
       }
+    }
+    
+    // If no application SID found, return error
+    if (!applicationSid) {
+      console.error('No Twilio Application SID found');
+      return new Response(
+        JSON.stringify({ error: 'Twilio Application SID not configured. Please add it to your settings.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     // Generate Twilio access token for Voice SDK
@@ -95,7 +101,7 @@ serve(async (req) => {
       incomingAllow: true, // Allow incoming calls
     });
     
-    // Create an access token - the identity MUST be a string
+    // Create an access token - ensure identity is a string
     const identity = user.id.toString();
     
     console.log("Creating token with identity:", identity);

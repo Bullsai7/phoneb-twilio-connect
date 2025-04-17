@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Device } from '@twilio/voice-sdk';
 import { useCallContext } from '../CallContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +8,8 @@ import { toast } from "sonner";
 
 export const useCallSetup = (micPermission: string) => {
   const { session } = useSupabaseAuth();
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const {
     setDevice,
     setConnection,
@@ -19,13 +21,17 @@ export const useCallSetup = (micPermission: string) => {
 
   useEffect(() => {
     let hasSetupCompleted = false;
+    let deviceInstance: Device | null = null;
     
     const setupTwilioDevice = async () => {
+      // Don't try to set up if we're already in the process or have completed
+      if (isInitializing || hasSetupCompleted || !session?.access_token) {
+        return;
+      }
+      
       try {
-        if (!session?.access_token) {
-          console.log("No access token available, skipping Twilio setup");
-          return;
-        }
+        setIsInitializing(true);
+        setSetupError(null);
         
         console.log("Requesting Twilio token...");
         const { data, error } = await supabase.functions.invoke('get-twilio-token', {
@@ -34,7 +40,7 @@ export const useCallSetup = (micPermission: string) => {
 
         if (error) {
           console.error("Error invoking get-twilio-token function:", error);
-          throw error;
+          throw new Error(error.message || "Failed to get token from server");
         }
 
         if (!data?.token) {
@@ -47,6 +53,8 @@ export const useCallSetup = (micPermission: string) => {
           logLevel: 1,
           codecPreferences: ['opus', 'pcmu'] as any
         });
+
+        deviceInstance = newDevice;
 
         newDevice.on('incoming', (conn) => {
           console.log('Incoming call received');
@@ -69,6 +77,7 @@ export const useCallSetup = (micPermission: string) => {
           toast.error("Error with phone connection: " + error.message);
         });
 
+        // Register the device
         await newDevice.register();
         console.log('Twilio device registered successfully');
         
@@ -76,7 +85,20 @@ export const useCallSetup = (micPermission: string) => {
         setDevice(newDevice);
       } catch (error: any) {
         console.error('Error setting up Twilio device:', error);
-        toast.error("Failed to initialize phone connection: " + error.message);
+        setSetupError(error.message);
+        
+        if (error.message.includes("Application SID")) {
+          toast.error("TwiML App not configured properly. Please check your Twilio settings.");
+        } else if (error.message.includes("credentials")) {
+          toast.error("Twilio credentials are missing or invalid. Please update them in settings.");
+        } else {
+          toast.error("Failed to initialize phone connection: " + error.message);
+        }
+        
+        // Set device to null in case of error
+        setDevice(null);
+      } finally {
+        setIsInitializing(false);
       }
     };
 
@@ -85,7 +107,16 @@ export const useCallSetup = (micPermission: string) => {
     }
 
     return () => {
+      // Clean up device on unmount
+      if (deviceInstance) {
+        deviceInstance.destroy();
+      }
       setDevice(null);
     };
   }, [session, micPermission]);
+
+  return {
+    isInitializing,
+    setupError
+  };
 };
