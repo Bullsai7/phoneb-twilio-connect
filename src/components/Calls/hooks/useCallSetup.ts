@@ -18,16 +18,31 @@ export const useCallSetup = (micPermission: string) => {
   } = useCallContext();
 
   useEffect(() => {
+    let hasSetupCompleted = false;
+    
     const setupTwilioDevice = async () => {
       try {
+        if (!session?.access_token) {
+          console.log("No access token available, skipping Twilio setup");
+          return;
+        }
+        
+        console.log("Requesting Twilio token...");
         const { data, error } = await supabase.functions.invoke('get-twilio-token', {
-          headers: session?.access_token 
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : undefined
+          headers: { Authorization: `Bearer ${session.access_token}` }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Error invoking get-twilio-token function:", error);
+          throw error;
+        }
 
+        if (!data?.token) {
+          console.error("No token returned from get-twilio-token function");
+          throw new Error("Failed to get Twilio token");
+        }
+
+        console.log("Token received, setting up Twilio device");
         const newDevice = new Device(data.token, {
           logLevel: 1,
           codecPreferences: ['opus', 'pcmu'] as any
@@ -57,6 +72,7 @@ export const useCallSetup = (micPermission: string) => {
         await newDevice.register();
         console.log('Twilio device registered successfully');
         
+        hasSetupCompleted = true;
         setDevice(newDevice);
       } catch (error: any) {
         console.error('Error setting up Twilio device:', error);
