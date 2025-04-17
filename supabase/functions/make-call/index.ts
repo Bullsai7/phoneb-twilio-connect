@@ -81,101 +81,165 @@ serve(async (req) => {
     let twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     let twilioAppSid = Deno.env.get('TWILIO_APP_SID');
     let useEnvCredentials = false;
+    let fromNumber;
     
     // Check if we should use a specific Twilio account from the user's accounts
     if (accountId) {
       console.log("Fetching specific Twilio account:", accountId);
-      const { data: accountData, error: accountError } = await supabaseClient
+      
+      // Check if the account exists before trying to use it
+      const { data: accountExists, error: checkError } = await supabaseClient
         .from('twilio_accounts')
-        .select('account_sid, auth_token, app_sid, phone_number')
+        .select('id')
         .eq('id', accountId)
-        .eq('user_id', user.id)
-        .single();
+        .eq('user_id', user.id);
       
-      if (accountError || !accountData) {
-        console.error("Account fetch error:", accountError);
-        return new Response(
-          JSON.stringify({ error: 'Twilio account not found' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-      
-      twilioAccountSid = accountData.account_sid;
-      twilioAuthToken = accountData.auth_token;
-      twilioAppSid = accountData.app_sid;
-      
-      if (!twilioAccountSid || !twilioAuthToken || !twilioAppSid) {
-        return new Response(
-          JSON.stringify({ error: 'Incomplete Twilio account information' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
+      if (checkError || !accountExists || accountExists.length === 0) {
+        console.log("Specified account doesn't exist, falling back to default account");
+        
+        // Try to get the default account
+        const { data: defaultAccount, error: defaultError } = await supabaseClient
+          .from('twilio_accounts')
+          .select('id, account_sid, auth_token, app_sid, phone_number')
+          .eq('user_id', user.id)
+          .eq('is_default', true)
+          .maybeSingle();
+        
+        if (defaultError || !defaultAccount) {
+          // If no default, get any account
+          const { data: anyAccount, error: anyError } = await supabaseClient
+            .from('twilio_accounts')
+            .select('id, account_sid, auth_token, app_sid, phone_number')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
+          
+          if (anyError || !anyAccount) {
+            // No accounts found
+            return new Response(
+              JSON.stringify({ error: 'No valid Twilio account found. Please set up a Twilio account first.' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            );
+          }
+          
+          // Use the first account found
+          twilioAccountSid = anyAccount.account_sid;
+          twilioAuthToken = anyAccount.auth_token;
+          twilioAppSid = anyAccount.app_sid;
+          fromNumber = anyAccount.phone_number;
+        } else {
+          // Use the default account
+          twilioAccountSid = defaultAccount.account_sid;
+          twilioAuthToken = defaultAccount.auth_token;
+          twilioAppSid = defaultAccount.app_sid;
+          fromNumber = defaultAccount.phone_number;
+        }
+      } else {
+        // The specified account exists, fetch its details
+        const { data: accountData, error: accountError } = await supabaseClient
+          .from('twilio_accounts')
+          .select('account_sid, auth_token, app_sid, phone_number')
+          .eq('id', accountId)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (accountError || !accountData) {
+          console.error("Account fetch error:", accountError);
+          return new Response(
+            JSON.stringify({ error: 'Error fetching Twilio account details' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          );
+        }
+        
+        twilioAccountSid = accountData.account_sid;
+        twilioAuthToken = accountData.auth_token;
+        twilioAppSid = accountData.app_sid;
+        fromNumber = accountData.phone_number;
       }
     }
     // Check if we got valid credentials from environment
     else if (twilioAccountSid && twilioAuthToken && twilioAppSid) {
       console.log("Using Twilio credentials from environment variables");
       useEnvCredentials = true;
+      // Use the default phone number from environment if available
+      fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
     } else {
-      // If not available in environment, get Twilio credentials from the user's profile
-      console.log("Fetching Twilio credentials from user profile");
-      const { data: profileData, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('twilio_account_sid, twilio_auth_token, twilio_app_sid, twilio_phone_number')
-        .eq('id', user.id)
-        .single();
+      // Try to get the default account
+      const { data: defaultAccount, error: defaultError } = await supabaseClient
+        .from('twilio_accounts')
+        .select('id, account_sid, auth_token, app_sid, phone_number')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .maybeSingle();
       
-      // Check if profile exists and has Twilio credentials
-      if (profileError) {
-        console.error("Profile fetch error:", profileError);
-        return new Response(
-          JSON.stringify({ error: 'Error fetching user profile' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-        );
+      if (!defaultError && defaultAccount) {
+        // Use the default account
+        twilioAccountSid = defaultAccount.account_sid;
+        twilioAuthToken = defaultAccount.auth_token;
+        twilioAppSid = defaultAccount.app_sid;
+        fromNumber = defaultAccount.phone_number;
+      } else {
+        // If no default, get any account
+        const { data: anyAccount, error: anyError } = await supabaseClient
+          .from('twilio_accounts')
+          .select('id, account_sid, auth_token, app_sid, phone_number')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        
+        if (!anyError && anyAccount) {
+          // Use the first account found
+          twilioAccountSid = anyAccount.account_sid;
+          twilioAuthToken = anyAccount.auth_token;
+          twilioAppSid = anyAccount.app_sid;
+          fromNumber = anyAccount.phone_number;
+        } else {
+          // If no accounts found, try to get from profile
+          console.log("No accounts found, checking profile");
+          const { data: profileData, error: profileError } = await supabaseClient
+            .from('profiles')
+            .select('twilio_account_sid, twilio_auth_token, twilio_app_sid, twilio_phone_number')
+            .eq('id', user.id)
+            .single();
+          
+          // Check if profile exists and has Twilio credentials
+          if (profileError) {
+            console.error("Profile fetch error:", profileError);
+            return new Response(
+              JSON.stringify({ error: 'Error fetching user profile' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+            );
+          }
+          
+          console.log("Profile data retrieved");
+          
+          if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token || !profileData?.twilio_app_sid) {
+            console.log("Twilio credentials missing in profile for user:", user.id);
+            return new Response(
+              JSON.stringify({ error: 'Twilio credentials not found or incomplete. Please set up your Twilio account in the settings.' }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            );
+          }
+          
+          twilioAccountSid = profileData.twilio_account_sid;
+          twilioAuthToken = profileData.twilio_auth_token;
+          twilioAppSid = profileData.twilio_app_sid;
+          fromNumber = profileData.twilio_phone_number;
+        }
       }
-      
-      console.log("Profile data retrieved");
-      
-      if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token || !profileData?.twilio_app_sid) {
-        console.log("Twilio credentials missing in profile for user:", user.id);
-        return new Response(
-          JSON.stringify({ error: 'Twilio credentials not found or incomplete. Please set up your Twilio account in the settings.' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-      
-      twilioAccountSid = profileData.twilio_account_sid;
-      twilioAuthToken = profileData.twilio_auth_token;
-      twilioAppSid = profileData.twilio_app_sid;
+    }
+    
+    // At this point, we should have all the Twilio credentials needed
+    if (!twilioAccountSid || !twilioAuthToken) {
+      return new Response(
+        JSON.stringify({ error: 'Could not find valid Twilio credentials. Please set up your Twilio account.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
     
     console.log("Making call with Twilio SID:", twilioAccountSid?.substring(0, 5) + "...");
     
-    // Retrieve the Twilio phone number to use
-    let fromNumber;
-    
-    if (useEnvCredentials) {
-      // Use the default phone number from environment if available
-      fromNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
-    } else if (accountId) {
-      // Get phone number from the specific account
-      const { data: accountData } = await supabaseClient
-        .from('twilio_accounts')
-        .select('phone_number')
-        .eq('id', accountId)
-        .single();
-      
-      fromNumber = accountData?.phone_number;
-    } else {
-      // Try to get the phone number from the user's profile
-      const { data: phoneData } = await supabaseClient
-        .from('profiles')
-        .select('twilio_phone_number')
-        .eq('id', user.id)
-        .single();
-      
-      fromNumber = phoneData?.twilio_phone_number;
-    }
-    
+    // Check if we have a phone number to use
     if (!fromNumber) {
       return new Response(
         JSON.stringify({ error: 'No phone number found to make calls from. Please add a phone number in settings.' }),
