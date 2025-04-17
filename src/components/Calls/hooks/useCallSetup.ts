@@ -16,10 +16,29 @@ export interface TwilioAccount {
   is_default: boolean;
 }
 
+export interface TwilioPhoneNumber {
+  phoneNumber: string;
+  friendlyName: string;
+  sid?: string;
+  capabilities?: {
+    voice: boolean;
+    sms: boolean;
+    mms: boolean;
+  };
+  available: boolean;
+  locality?: string;
+  region?: string;
+  isoCountry?: string;
+  dateCreated?: string;
+}
+
 export const useCallSetup = (micPermission: string, selectedAccountId?: string) => {
   const { session } = useSupabaseAuth();
   const [isInitializing, setIsInitializing] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [availableNumbers, setAvailableNumbers] = useState<TwilioPhoneNumber[]>([]);
+  const [ownedNumbers, setOwnedNumbers] = useState<TwilioPhoneNumber[]>([]);
+  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
   const {
     setDevice,
     setConnection,
@@ -28,6 +47,37 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
     setIsIncomingCall,
     setIncomingCallFrom,
   } = useCallContext();
+
+  const fetchAvailableNumbers = async (accountSid: string, authToken: string, countryCode = 'US') => {
+    if (!session?.access_token) return;
+    
+    setIsLoadingNumbers(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-available-numbers', {
+        body: { accountSid, authToken, countryCode },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+
+      if (error) {
+        console.error("Error fetching available numbers:", error);
+        toast.error("Failed to fetch available phone numbers");
+        return;
+      }
+
+      if (data?.availableNumbers) {
+        setAvailableNumbers(data.availableNumbers);
+      }
+      
+      if (data?.ownedNumbers) {
+        setOwnedNumbers(data.ownedNumbers);
+      }
+    } catch (error) {
+      console.error("Error fetching available numbers:", error);
+      toast.error("Failed to fetch available phone numbers");
+    } finally {
+      setIsLoadingNumbers(false);
+    }
+  };
 
   useEffect(() => {
     let hasSetupCompleted = false;
@@ -132,6 +182,10 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
 
   return {
     isInitializing,
-    setupError
+    setupError,
+    availableNumbers,
+    ownedNumbers,
+    isLoadingNumbers,
+    fetchAvailableNumbers
   };
 };
