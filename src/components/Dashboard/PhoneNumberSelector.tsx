@@ -7,11 +7,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PulseLoader } from "@/components/ui/pulse-loader";
-import { useCallSetup, TwilioPhoneNumber } from '@/components/Calls/hooks/useCallSetup';
-import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
-import { Phone, Plus, Check, RefreshCw, X } from 'lucide-react';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
+import { Phone, Plus, Check, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+// Let's define our own version of needed types from useCallSetup
+export interface TwilioPhoneNumber {
+  phoneNumber: string;
+  friendlyName: string;
+  sid?: string;
+  capabilities?: {
+    voice: boolean;
+    sms: boolean;
+    mms: boolean;
+  };
+  available: boolean;
+  locality?: string;
+  region?: string;
+  isoCountry?: string;
+  dateCreated?: string;
+}
 
 const PhoneNumbersList = ({ 
   numbers, 
@@ -102,7 +118,9 @@ const PhoneNumberSelector = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [selectedCountry, setSelectedCountry] = useState("US");
   const [purchaseInProgress, setPurchaseInProgress] = useState(false);
-  const { fetchAvailableNumbers, availableNumbers, ownedNumbers, isLoadingNumbers } = useCallSetup("granted", selectedAccountId);
+  const [availableNumbers, setAvailableNumbers] = useState<TwilioPhoneNumber[]>([]);
+  const [ownedNumbers, setOwnedNumbers] = useState<TwilioPhoneNumber[]>([]);
+  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
   const { accounts, defaultAccount, updateAccount, refreshAccounts } = useTwilioAccounts();
   
   useEffect(() => {
@@ -110,6 +128,37 @@ const PhoneNumberSelector = () => {
       setSelectedAccountId(defaultAccount.id);
     }
   }, [defaultAccount]);
+  
+  const fetchAvailableNumbers = async (accountSid: string, authToken: string, countryCode = 'US') => {
+    if (!session?.access_token) return;
+    
+    setIsLoadingNumbers(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-available-numbers', {
+        body: { accountSid, authToken, countryCode },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+
+      if (error) {
+        console.error("Error fetching available numbers:", error);
+        toast.error("Failed to fetch available phone numbers");
+        return;
+      }
+
+      if (data?.availableNumbers) {
+        setAvailableNumbers(data.availableNumbers);
+      }
+      
+      if (data?.ownedNumbers) {
+        setOwnedNumbers(data.ownedNumbers);
+      }
+    } catch (error) {
+      console.error("Error fetching available numbers:", error);
+      toast.error("Failed to fetch available phone numbers");
+    } finally {
+      setIsLoadingNumbers(false);
+    }
+  };
   
   const handleFetchNumbers = async () => {
     if (!selectedAccountId) {
