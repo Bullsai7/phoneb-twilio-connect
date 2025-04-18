@@ -1,165 +1,36 @@
 
 import React, { useState, useEffect } from 'react';
-import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { PulseLoader } from "@/components/ui/pulse-loader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Phone, RefreshCw, PhoneForwarded } from 'lucide-react';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
-import { Phone, Plus, Check, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-
-// Let's define our own version of needed types from useCallSetup
-export interface TwilioPhoneNumber {
-  phoneNumber: string;
-  friendlyName: string;
-  sid?: string;
-  capabilities?: {
-    voice: boolean;
-    sms: boolean;
-    mms: boolean;
-  };
-  available: boolean;
-  locality?: string;
-  region?: string;
-  isoCountry?: string;
-  dateCreated?: string;
-}
-
-const PhoneNumbersList = ({ 
-  numbers, 
-  isLoading,
-  selectedAccount,
-  onSelect,
-  alreadyOwned = false
-}: { 
-  numbers: TwilioPhoneNumber[], 
-  isLoading: boolean,
-  selectedAccount: any,
-  onSelect: (number: TwilioPhoneNumber) => void,
-  alreadyOwned?: boolean
-}) => {
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <PulseLoader />
-        <span className="ml-2">Loading phone numbers...</span>
-      </div>
-    );
-  }
-
-  if (numbers.length === 0) {
-    return (
-      <div className="text-center p-8 border border-dashed rounded-md">
-        <p className="text-muted-foreground">
-          {alreadyOwned 
-            ? "You don't own any phone numbers in this account yet." 
-            : "No available numbers found. Try changing your search criteria."}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-2">
-      {numbers.map((number) => (
-        <div 
-          key={number.phoneNumber} 
-          className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 transition-colors"
-        >
-          <div className="flex-1">
-            <div className="font-medium">{number.phoneNumber}</div>
-            <div className="text-sm text-muted-foreground">
-              {number.friendlyName || `${number.region || ''} ${number.locality || ''}`}
-            </div>
-            {number.capabilities && (
-              <div className="flex gap-1 mt-1">
-                {number.capabilities.voice && <Badge variant="outline" className="text-xs">Voice</Badge>}
-                {number.capabilities.sms && <Badge variant="outline" className="text-xs">SMS</Badge>}
-                {number.capabilities.mms && <Badge variant="outline" className="text-xs">MMS</Badge>}
-              </div>
-            )}
-          </div>
-          
-          {alreadyOwned ? (
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => onSelect(number)}
-              disabled={selectedAccount.phone_number === number.phoneNumber}
-            >
-              {selectedAccount.phone_number === number.phoneNumber ? (
-                <>
-                  <Check className="mr-1 h-4 w-4" /> Selected
-                </>
-              ) : (
-                "Select"
-              )}
-            </Button>
-          ) : (
-            <Button 
-              size="sm"
-              onClick={() => onSelect(number)}
-            >
-              <Plus className="mr-1 h-4 w-4" /> Purchase
-            </Button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
+import { PhoneNumberList } from './PhoneNumberList';
+import { usePhoneNumberOperations } from '@/hooks/usePhoneNumberOperations';
 
 const PhoneNumberSelector = () => {
   const { session } = useSupabaseAuth();
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [selectedCountry, setSelectedCountry] = useState("US");
-  const [purchaseInProgress, setPurchaseInProgress] = useState(false);
-  const [availableNumbers, setAvailableNumbers] = useState<TwilioPhoneNumber[]>([]);
-  const [ownedNumbers, setOwnedNumbers] = useState<TwilioPhoneNumber[]>([]);
-  const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
   const { accounts, defaultAccount, updateAccount, refreshAccounts } = useTwilioAccounts();
-  
+
+  const {
+    isLoadingNumbers,
+    availableNumbers,
+    ownedNumbers,
+    fetchAvailableNumbers,
+    handlePurchaseNumber
+  } = usePhoneNumberOperations(selectedAccountId, session, refreshAccounts);
+
   useEffect(() => {
     if (defaultAccount && !selectedAccountId) {
       setSelectedAccountId(defaultAccount.id);
     }
   }, [defaultAccount]);
-  
-  const fetchAvailableNumbers = async (accountSid: string, authToken: string, countryCode = 'US') => {
-    if (!session?.access_token) return;
-    
-    setIsLoadingNumbers(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('get-available-numbers', {
-        body: { accountSid, authToken, countryCode },
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
 
-      if (error) {
-        console.error("Error fetching available numbers:", error);
-        toast.error("Failed to fetch available phone numbers");
-        return;
-      }
-
-      if (data?.availableNumbers) {
-        setAvailableNumbers(data.availableNumbers);
-      }
-      
-      if (data?.ownedNumbers) {
-        setOwnedNumbers(data.ownedNumbers);
-      }
-    } catch (error) {
-      console.error("Error fetching available numbers:", error);
-      toast.error("Failed to fetch available phone numbers");
-    } finally {
-      setIsLoadingNumbers(false);
-    }
-  };
-  
   const handleFetchNumbers = async () => {
     if (!selectedAccountId) {
       toast.error("Please select a Twilio account first");
@@ -174,47 +45,7 @@ const PhoneNumberSelector = () => {
     
     await fetchAvailableNumbers(account.account_sid, account.auth_token, selectedCountry);
   };
-  
-  const handlePurchaseNumber = async (number: TwilioPhoneNumber) => {
-    if (!selectedAccountId || !session?.access_token) {
-      toast.error("Please select a Twilio account first");
-      return;
-    }
-    
-    setPurchaseInProgress(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('purchase-phone-number', {
-        body: { 
-          accountId: selectedAccountId,
-          phoneNumber: number.phoneNumber
-        },
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      
-      if (error || !data?.success) {
-        throw new Error(data?.error || error?.message || "Failed to purchase phone number");
-      }
-      
-      toast.success(`Successfully purchased ${number.phoneNumber}`);
-      
-      // Update the Twilio account with the new phone number
-      const account = accounts.find(acc => acc.id === selectedAccountId);
-      if (account) {
-        await updateAccount(account.id, { phone_number: number.phoneNumber });
-      }
-      
-      // Refresh accounts and numbers
-      await refreshAccounts();
-      await handleFetchNumbers();
-      
-    } catch (error: any) {
-      console.error("Error purchasing number:", error);
-      toast.error(error.message || "Failed to purchase phone number");
-    } finally {
-      setPurchaseInProgress(false);
-    }
-  };
-  
+
   const handleSelectOwnedNumber = async (number: TwilioPhoneNumber) => {
     if (!selectedAccountId) {
       toast.error("Please select a Twilio account first");
@@ -301,7 +132,7 @@ const PhoneNumberSelector = () => {
               </TabsList>
               
               <TabsContent value="owned" className="mt-4">
-                <PhoneNumbersList 
+                <PhoneNumberList 
                   numbers={ownedNumbers} 
                   isLoading={isLoadingNumbers}
                   selectedAccount={accounts.find(acc => acc.id === selectedAccountId) || {}}
@@ -311,7 +142,7 @@ const PhoneNumberSelector = () => {
               </TabsContent>
               
               <TabsContent value="available" className="mt-4">
-                <PhoneNumbersList 
+                <PhoneNumberList 
                   numbers={availableNumbers} 
                   isLoading={isLoadingNumbers}
                   selectedAccount={accounts.find(acc => acc.id === selectedAccountId) || {}}

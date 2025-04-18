@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import AccountsManagement from '@/components/Dashboard/AccountsManagement';
-import PhoneNumberSelector from '@/components/Dashboard/PhoneNumberSelector';
+import PhoneNumberSelector from '@/components/Dashboard/PhoneNumbers/PhoneNumberSelector';
 
 const DashboardView = () => {
   const { user } = useSupabaseAuth();
