@@ -6,10 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Phone, RefreshCw, PhoneForwarded } from 'lucide-react';
+import { toast } from "sonner";
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { useTwilioAccounts } from '@/hooks/useTwilioAccounts';
 import { PhoneNumberList } from './PhoneNumberList';
 import { usePhoneNumberOperations } from '@/hooks/usePhoneNumberOperations';
+import { TwilioPhoneNumber } from '@/types/twilio';
 
 const PhoneNumberSelector = () => {
   const { session } = useSupabaseAuth();
