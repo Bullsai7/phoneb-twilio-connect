@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Plus, Edit, Trash2, Check, Star, StarOff, Copy, Eye, EyeOff } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -189,7 +188,7 @@ const AccountsManagement = () => {
   
   const handleDeleteAccount = async (account: TwilioAccount) => {
     if (window.confirm(`Are you sure you want to delete the account "${account.account_name}"?`)) {
-      await deleteAccount(account.id);
+      await deleteAccount(account.id, accounts);  // Added 'accounts' as the second argument
     }
   };
   
