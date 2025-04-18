@@ -10,6 +10,7 @@ import AudioPermissions from './AudioPermissions';
 import DialPad from './DialPad';
 import IncomingCall from './IncomingCall';
 import ActiveCall from './ActiveCall';
+import TwiMLAppGuide from './TwiMLAppGuide';
 import { CallProvider, useCallContext } from './CallContext';
 import { useCallSetup, TwilioAccount } from './hooks/useCallSetup';
 import { useAudioPermissions } from './hooks/useAudioPermissions';
@@ -21,6 +22,7 @@ const CallInterfaceContent = () => {
   const { isAuthenticated: isTwilioSetup } = useTwilio();
   const { accounts, defaultAccount } = useTwilioAccounts();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [showTwiMLGuide, setShowTwiMLGuide] = useState(false);
   
   const {
     micPermission,
@@ -65,8 +67,28 @@ const CallInterfaceContent = () => {
     }
   }, [defaultAccount]);
 
+  // Check for TwiML App error in errorDetails and show guide if needed
+  useEffect(() => {
+    if (errorDetails && (
+      errorDetails.includes('TwiML Application SID') || 
+      errorDetails.includes('App SID')
+    )) {
+      setShowTwiMLGuide(true);
+    }
+  }, [errorDetails]);
+
   // Set up Twilio device
-  useCallSetup(micPermission, selectedAccountId);
+  const { setupError } = useCallSetup(micPermission, selectedAccountId);
+
+  // Show TwiML guide if there's a setup error related to TwiML App
+  useEffect(() => {
+    if (setupError && (
+      setupError.includes('TwiML Application SID') || 
+      setupError.includes('App SID')
+    )) {
+      setShowTwiMLGuide(true);
+    }
+  }, [setupError]);
 
   // Check for microphone and speaker permissions on mount
   useEffect(() => {
@@ -100,6 +122,10 @@ const CallInterfaceContent = () => {
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {showTwiMLGuide && (
+        <TwiMLAppGuide onClose={() => setShowTwiMLGuide(false)} />
       )}
 
       {accounts.length > 0 && (

@@ -137,11 +137,15 @@ serve(async (req) => {
       }
     }
     
-    // If no application SID found, return error
+    // If no application SID found, return a more descriptive error
     if (!applicationSid) {
       console.error('No Twilio Application SID found');
       return new Response(
-        JSON.stringify({ error: 'Twilio Application SID not configured. Please add it to your settings.' }),
+        JSON.stringify({ 
+          error: 'Twilio TwiML Application SID not configured', 
+          details: 'You need to create a TwiML Application in your Twilio account and add the SID to your profile or Twilio account settings.',
+          twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps'
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }

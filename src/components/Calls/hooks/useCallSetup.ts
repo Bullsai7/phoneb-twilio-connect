@@ -109,6 +109,9 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
         }
 
         if (!data?.token) {
+          if (data?.error) {
+            throw new Error(data.error);
+          }
           console.error("No token returned from get-twilio-token function");
           throw new Error("Failed to get Twilio token");
         }

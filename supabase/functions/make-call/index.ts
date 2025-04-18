@@ -213,7 +213,7 @@ serve(async (req) => {
           
           console.log("Profile data retrieved");
           
-          if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token || !profileData?.twilio_app_sid) {
+          if (!profileData?.twilio_account_sid || !profileData?.twilio_auth_token) {
             console.log("Twilio credentials missing in profile for user:", user.id);
             return new Response(
               JSON.stringify({ error: 'Twilio credentials not found or incomplete. Please set up your Twilio account in the settings.' }),
@@ -223,7 +223,12 @@ serve(async (req) => {
           
           twilioAccountSid = profileData.twilio_account_sid;
           twilioAuthToken = profileData.twilio_auth_token;
-          twilioAppSid = profileData.twilio_app_sid;
+          
+          // If application SID exists in profile, use it
+          if (profileData.twilio_app_sid) {
+            twilioAppSid = profileData.twilio_app_sid;
+          }
+          
           fromNumber = profileData.twilio_phone_number;
         }
       }
@@ -238,6 +243,18 @@ serve(async (req) => {
     }
     
     console.log("Making call with Twilio SID:", twilioAccountSid?.substring(0, 5) + "...");
+    
+    // Check if we have a TwiML App SID
+    if (!twilioAppSid) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Twilio TwiML Application SID not configured', 
+          details: 'You need to create a TwiML Application in your Twilio account and add the SID to your profile or Twilio account settings.',
+          twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
     
     // Check if we have a phone number to use
     if (!fromNumber) {
