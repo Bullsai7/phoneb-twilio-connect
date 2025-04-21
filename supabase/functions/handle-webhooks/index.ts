@@ -20,8 +20,28 @@ serve(async (req) => {
     );
     
     // Parse the incoming webhook data from Twilio
-    const formData = await req.formData();
-    const twilioData = Object.fromEntries(formData.entries());
+    let twilioData;
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      // Handle JSON data
+      twilioData = await req.json();
+    } else if (contentType.includes('application/x-www-form-urlencoded') || 
+              contentType.includes('multipart/form-data')) {
+      // Handle form data
+      const formData = await req.formData();
+      twilioData = Object.fromEntries(formData.entries());
+    } else {
+      // Default parsing as form data
+      try {
+        const formData = await req.formData();
+        twilioData = Object.fromEntries(formData.entries());
+      } catch (e) {
+        console.error('Error parsing request body:', e);
+        twilioData = {};
+      }
+    }
+    
     console.log('Received webhook data:', twilioData);
     
     // Determine if this is a call or a message webhook

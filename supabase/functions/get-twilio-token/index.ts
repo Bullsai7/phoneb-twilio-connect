@@ -231,18 +231,63 @@ serve(async (req) => {
       );
     }
     
-    // If no application SID found, return a more descriptive error
+    // If no application SID found, let's create one
     if (!applicationSid) {
-      console.error('No Twilio Application SID found');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Twilio TwiML Application SID not configured', 
-          details: 'You need to create a TwiML Application in your Twilio account and add the SID to your profile or Twilio account settings.',
-          twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps',
-          needsSetup: true
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
+      try {
+        console.log("No TwiML App SID found, attempting to create one");
+        const twilioClient = twilio(accountSid, authToken);
+        
+        // Create a TwiML app
+        const twimlApp = await twilioClient.applications.create({
+          friendlyName: 'PhoneB TwiML App',
+          voiceUrl: 'https://qjgbmowupuzgwrfcmaao.supabase.co/functions/v1/handle-webhooks',
+          voiceMethod: 'POST'
+        });
+        
+        applicationSid = twimlApp.sid;
+        
+        // Save the App SID to the account or profile
+        if (accountId) {
+          await supabaseClient
+            .from('twilio_accounts')
+            .update({ app_sid: applicationSid })
+            .eq('id', accountId);
+        } else {
+          // Try to update the default account first
+          const { data: defaultAccount } = await supabaseClient
+            .from('twilio_accounts')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('is_default', true)
+            .maybeSingle();
+          
+          if (defaultAccount) {
+            await supabaseClient
+              .from('twilio_accounts')
+              .update({ app_sid: applicationSid })
+              .eq('id', defaultAccount.id);
+          } else {
+            // If no default account, update the user profile
+            await supabaseClient
+              .from('profiles')
+              .update({ twilio_app_sid: applicationSid })
+              .eq('id', user.id);
+          }
+        }
+        
+        console.log("Created and saved new TwiML App SID:", applicationSid);
+      } catch (twimlError) {
+        console.error('Error creating TwiML App:', twimlError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Twilio TwiML Application SID not configured', 
+            details: 'Unable to automatically create a TwiML Application. Please create one manually in your Twilio account.',
+            twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps',
+            needsSetup: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
     }
 
     // Try to validate the credentials by creating the Twilio client

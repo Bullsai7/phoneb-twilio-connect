@@ -47,7 +47,7 @@ export function useSupabaseAuth() {
 
   // Add a function to refresh the session token if needed
   const refreshSession = useCallback(async () => {
-    if (refreshingSession) return;
+    if (refreshingSession) return false;
     
     try {
       setRefreshingSession(true);
