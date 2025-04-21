@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, Link, useNavigate } from 'react-router-dom';
 import AuthForm from '@/components/Auth/AuthForm';
 import { useTwilio } from '@/context/TwilioContext';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
@@ -9,8 +9,16 @@ import { Button } from '@/components/ui/button';
 const Index = () => {
   const { isAuthenticated, loading: twilioLoading } = useTwilio();
   const { session, loading: authLoading } = useSupabaseAuth();
+  const navigate = useNavigate();
   
   const loading = twilioLoading || authLoading;
+  
+  // Effect to redirect to dashboard when authenticated with Twilio
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [loading, isAuthenticated, navigate]);
   
   // Show loading state
   if (loading) {

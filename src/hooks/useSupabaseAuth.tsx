@@ -21,6 +21,7 @@ export function useSupabaseAuth() {
 
     // Then check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Got existing session:', session ? 'yes' : 'no');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -31,9 +32,14 @@ export function useSupabaseAuth() {
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

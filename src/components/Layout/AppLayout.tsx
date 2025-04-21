@@ -1,19 +1,34 @@
 
-import React, { useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { useTwilio } from '@/context/TwilioContext';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import { toast } from 'sonner';
 
 const AppLayout: React.FC = () => {
   const { isAuthenticated, loading: twilioLoading } = useTwilio();
   const { session, loading: authLoading } = useSupabaseAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  useEffect(() => {
+    // Check authentication states once loading is complete
+    if (!authLoading && !twilioLoading) {
+      if (!session) {
+        toast.error("Please sign in to access this page");
+        navigate('/auth', { replace: true });
+      } else if (!isAuthenticated) {
+        toast.info("Please connect your Twilio account first");
+        navigate('/', { replace: true });
+      }
+    }
+  }, [session, isAuthenticated, authLoading, twilioLoading, navigate]);
 
   // Show loading state
   const loading = twilioLoading || authLoading;
