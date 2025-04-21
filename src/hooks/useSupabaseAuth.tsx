@@ -1,12 +1,14 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from "sonner";
 
 export function useSupabaseAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingSession, setRefreshingSession] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener first
@@ -44,27 +46,45 @@ export function useSupabaseAuth() {
   };
 
   // Add a function to refresh the session token if needed
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
+    if (refreshingSession) return;
+    
     try {
-      setLoading(true);
+      setRefreshingSession(true);
+      console.log('Refreshing session token...');
       const { data, error } = await supabase.auth.refreshSession();
+      
       if (error) {
         console.error('Error refreshing session:', error);
-      } else if (data && data.session) {
+        toast.error("Failed to refresh session: " + error.message);
+        return false;
+      } 
+      
+      if (data && data.session) {
+        console.log('Session refreshed successfully');
         setSession(data.session);
         setUser(data.session.user);
+        toast.success("Session refreshed successfully");
+        return true;
+      } else {
+        console.error('No session returned after refresh');
+        toast.error("Failed to refresh session: No session returned");
+        return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error refreshing session:', error);
+      toast.error("Error refreshing session: " + error.message);
+      return false;
     } finally {
-      setLoading(false);
+      setRefreshingSession(false);
     }
-  };
+  }, [refreshingSession]);
 
   return {
     session,
     user,
     loading,
+    refreshingSession,
     signOut,
     refreshSession
   };

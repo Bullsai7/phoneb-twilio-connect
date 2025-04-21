@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Settings, PhoneForwarded } from 'lucide-react';
+import { Settings, PhoneForwarded, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,6 +38,14 @@ const CallInterfaceContent = () => {
     handleDigitClick
   } = usePhoneNumber();
 
+  // Set up Twilio device
+  const {
+    isInitializing,
+    setupError, 
+    needsSetup,
+    retrySetup
+  } = useCallSetup(micPermission, selectedAccountId);
+
   const {
     isLoading,
     errorDetails,
@@ -65,26 +73,25 @@ const CallInterfaceContent = () => {
     if (defaultAccount && !selectedAccountId) {
       setSelectedAccountId(defaultAccount.id);
     }
-  }, [defaultAccount]);
+  }, [defaultAccount, selectedAccountId]);
 
   // Check for TwiML App error in errorDetails and show guide if needed
   useEffect(() => {
     if (errorDetails && (
       errorDetails.includes('TwiML Application SID') || 
-      errorDetails.includes('App SID')
+      errorDetails.includes('App SID') ||
+      errorDetails.includes('TwiML')
     )) {
       setShowTwiMLGuide(true);
     }
   }, [errorDetails]);
 
-  // Set up Twilio device
-  const { setupError } = useCallSetup(micPermission, selectedAccountId);
-
   // Show TwiML guide if there's a setup error related to TwiML App
   useEffect(() => {
     if (setupError && (
       setupError.includes('TwiML Application SID') || 
-      setupError.includes('App SID')
+      setupError.includes('App SID') ||
+      setupError.includes('TwiML')
     )) {
       setShowTwiMLGuide(true);
     }
@@ -93,7 +100,7 @@ const CallInterfaceContent = () => {
   // Check for microphone and speaker permissions on mount
   useEffect(() => {
     checkAudioPermissions();
-  }, []);
+  }, [checkAudioPermissions]);
 
   const handleStartCall = () => startCall(phoneNumber);
   const toggleMute = () => setIsMuted(!isMuted);
@@ -126,6 +133,37 @@ const CallInterfaceContent = () => {
 
       {showTwiMLGuide && (
         <TwiMLAppGuide onClose={() => setShowTwiMLGuide(false)} />
+      )}
+
+      {needsSetup && (
+        <Alert className="mb-4" variant="warning">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Twilio Setup Incomplete</AlertTitle>
+          <AlertDescription className="flex flex-col space-y-2">
+            <p>Your Twilio configuration is incomplete. Please check your settings in the dashboard.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" asChild className="w-fit">
+                <Link to="/dashboard">Configure Twilio</Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowTwiMLGuide(true)}>
+                Setup Guide
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {setupError && !needsSetup && (
+        <Alert className="mb-4" variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Connection Error</AlertTitle>
+          <AlertDescription className="flex flex-col space-y-2">
+            <p>{setupError}</p>
+            <Button variant="outline" size="sm" onClick={retrySetup} disabled={isInitializing} className="w-fit">
+              Retry Connection
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {accounts.length > 0 && (
@@ -176,8 +214,8 @@ const CallInterfaceContent = () => {
           phoneNumber={phoneNumber}
           onPhoneNumberChange={handlePhoneNumberChange}
           onStartCall={handleStartCall}
-          isLoading={isLoading}
-          disabled={!isTwilioSetup || micPermission !== 'granted' || !selectedAccountId}
+          isLoading={isLoading || isInitializing}
+          disabled={!isTwilioSetup || micPermission !== 'granted' || !selectedAccountId || needsSetup || !!setupError}
           onDigitClick={handleDigitClick}
         />
       ) : (

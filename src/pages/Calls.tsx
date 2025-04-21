@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CallInterface from '@/components/Calls/CallInterface';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, PhoneIcon, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Info, PhoneIcon, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useTwilio } from '@/context/TwilioContext';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,11 @@ import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 const Calls = () => {
   const { isAuthenticated: isTwilioSetup } = useTwilio();
-  const { session, refreshSession } = useSupabaseAuth();
+  const { session, refreshSession, refreshingSession } = useSupabaseAuth();
   const [showSetupGuide, setShowSetupGuide] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   
   const handleRetryConnection = async () => {
-    setIsRefreshing(true);
     try {
       await refreshSession();
       toast.success("Session refreshed. Retrying connection...");
@@ -27,8 +26,6 @@ const Calls = () => {
       window.location.reload();
     } catch (error) {
       toast.error("Failed to refresh session");
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -61,6 +58,82 @@ const Calls = () => {
             </div>
           </AlertDescription>
         </Alert>
+      )}
+      
+      <Alert variant="default" className="mb-4">
+        <Info className="h-4 w-4" />
+        <AlertTitle>Connection Troubleshooting</AlertTitle>
+        <AlertDescription className="flex flex-col space-y-2">
+          <p>If you're experiencing connection issues, try refreshing your session:</p>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRetryConnection} 
+              disabled={refreshingSession} 
+              className="w-fit flex items-center gap-1"
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshingSession ? 'animate-spin' : ''}`} />
+              {refreshingSession ? "Refreshing..." : "Refresh Connection"}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowTroubleshooting(!showTroubleshooting)} 
+              className="w-fit"
+            >
+              {showTroubleshooting ? "Hide Troubleshooting" : "Show Troubleshooting Tips"}
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+      
+      {showTroubleshooting && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Troubleshooting Phone Connection</CardTitle>
+            <CardDescription>Common issues and how to fix them</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="font-medium mb-1">Edge Function Errors</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                If you see "Edge Function returned a non-2xx status code", this typically means there's an issue with your Twilio configuration.
+              </p>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-muted-foreground ml-4">
+                <li>Verify that your Twilio Account SID and Auth Token are correct in the Dashboard</li>
+                <li>Make sure your TwiML App SID is added in Dashboard settings</li>
+                <li>Check that you have a valid Twilio phone number</li>
+                <li>Try refreshing your session using the button above</li>
+                <li>If problems persist, try logging out and back in</li>
+              </ol>
+            </div>
+            
+            <div>
+              <h3 className="font-medium mb-1">Microphone Issues</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                If your microphone isn't working:
+              </p>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-muted-foreground ml-4">
+                <li>Make sure your browser has permission to access your microphone</li>
+                <li>Check your device settings to ensure the correct microphone is selected</li>
+                <li>Try using a different browser if problems persist</li>
+              </ol>
+            </div>
+            
+            <div>
+              <h3 className="font-medium mb-1">Account Verification</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                If you're using a Twilio trial account:
+              </p>
+              <ol className="list-decimal list-inside text-sm space-y-1 text-muted-foreground ml-4">
+                <li>Verify your personal phone number in the Twilio Console</li>
+                <li>You can only call verified numbers with a trial account</li>
+                <li>Consider upgrading to a full Twilio account for production use</li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
       )}
       
       {showSetupGuide && (
@@ -122,23 +195,6 @@ const Calls = () => {
           </CardContent>
         </Card>
       )}
-
-      <Alert variant="default" className="mb-4">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Connection Troubleshooting</AlertTitle>
-        <AlertDescription className="flex flex-col space-y-2">
-          <p>If you're experiencing connection issues, try refreshing your session:</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRetryConnection} 
-            disabled={isRefreshing} 
-            className="w-fit"
-          >
-            {isRefreshing ? "Refreshing..." : "Refresh Connection"}
-          </Button>
-        </AlertDescription>
-      </Alert>
       
       <CallInterface />
     </div>

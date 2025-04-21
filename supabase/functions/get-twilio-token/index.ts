@@ -66,7 +66,26 @@ serve(async (req) => {
     let accountSid, authToken, applicationSid;
     
     if (accountId) {
-      console.log("Using specific Twilio account:", accountId);
+      console.log("Looking for specific Twilio account:", accountId);
+      
+      // First check if the account exists
+      const { data: accountCheck, error: checkError } = await supabaseClient
+        .from('twilio_accounts')
+        .select('id')
+        .eq('id', accountId)
+        .eq('user_id', user.id);
+      
+      if (checkError || !accountCheck || accountCheck.length === 0) {
+        console.error('Specified account does not exist:', checkError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Twilio account not found',
+            details: 'The specified Twilio account does not exist. Please check your account settings.',
+            needsSetup: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
       
       // Get credentials for the specified Twilio account
       const { data: accountData, error: accountError } = await supabaseClient
@@ -74,16 +93,28 @@ serve(async (req) => {
         .select('account_sid, auth_token, app_sid')
         .eq('id', accountId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       
-      if (accountError || !accountData) {
+      if (accountError) {
         console.error('Error fetching Twilio account:', accountError);
         return new Response(
           JSON.stringify({ 
-            error: 'Specified Twilio account not found',
-            details: accountError?.message
+            error: 'Error retrieving Twilio account details',
+            details: accountError.message
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      }
+      
+      if (!accountData) {
+        console.error('Account exists but details missing');
+        return new Response(
+          JSON.stringify({ 
+            error: 'Twilio account details missing',
+            details: 'Your Twilio account exists but appears to be missing credentials',
+            needsSetup: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
         );
       }
       
@@ -95,7 +126,8 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             error: 'Twilio credentials missing in account',
-            details: 'The selected account does not have complete Twilio credentials'
+            details: 'The selected account does not have complete Twilio credentials',
+            needsSetup: true
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
@@ -129,20 +161,18 @@ serve(async (req) => {
           console.log("No valid default account found or it has incomplete credentials");
           
           // If no default account or it has incomplete credentials, try any account
-          const { data: anyAccount, error: anyError } = await supabaseClient
+          const { data: anyAccounts, error: anyError } = await supabaseClient
             .from('twilio_accounts')
             .select('account_sid, auth_token, app_sid')
             .eq('user_id', user.id)
             .not('account_sid', 'is', null)
-            .not('auth_token', 'is', null)
-            .limit(1)
-            .maybeSingle();
+            .not('auth_token', 'is', null);
           
-          if (!anyError && anyAccount && anyAccount.account_sid && anyAccount.auth_token) {
+          if (!anyError && anyAccounts && anyAccounts.length > 0) {
             console.log("Using first valid Twilio account found");
-            accountSid = anyAccount.account_sid;
-            authToken = anyAccount.auth_token;
-            applicationSid = anyAccount.app_sid;
+            accountSid = anyAccounts[0].account_sid;
+            authToken = anyAccounts[0].auth_token;
+            applicationSid = anyAccounts[0].app_sid;
           } else {
             // If no accounts found with valid credentials, try the user profile
             console.log("No valid accounts found, checking profile");
@@ -157,7 +187,8 @@ serve(async (req) => {
               return new Response(
                 JSON.stringify({ 
                   error: 'Error fetching Twilio credentials', 
-                  details: profileError.message
+                  details: profileError.message,
+                  needsSetup: true
                 }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
               );
@@ -168,9 +199,10 @@ serve(async (req) => {
               return new Response(
                 JSON.stringify({ 
                   error: 'Twilio credentials not found',
-                  details: 'Please set up your Twilio account in the dashboard first'
+                  details: 'Please set up your Twilio account in the dashboard first',
+                  needsSetup: true
                 }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
               );
             }
             
@@ -192,9 +224,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Twilio credentials not found', 
-          details: 'Please set up your Twilio account in the dashboard first'
+          details: 'Please set up your Twilio account in the dashboard first',
+          needsSetup: true
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
       );
     }
     
@@ -205,7 +238,8 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'Twilio TwiML Application SID not configured', 
           details: 'You need to create a TwiML Application in your Twilio account and add the SID to your profile or Twilio account settings.',
-          twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps'
+          twilio_help_url: 'https://www.twilio.com/console/voice/twiml/apps',
+          needsSetup: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
@@ -220,7 +254,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Invalid Twilio credentials', 
-          details: twilioError.message
+          details: twilioError.message,
+          needsSetup: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
@@ -268,7 +303,8 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Failed to generate Twilio token', 
-          details: tokenError.message
+          details: tokenError.message,
+          needsSetup: tokenError.message.includes('Application SID')
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
