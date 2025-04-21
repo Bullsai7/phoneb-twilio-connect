@@ -138,7 +138,7 @@ const Calls = () => {
               </ol>
             </div>
             
-            <Alert variant="info" className="mt-4">
+            <Alert variant="default" className="mt-4">
               <Info className="h-4 w-4" />
               <AlertTitle>Your Configuration</AlertTitle>
               <AlertDescription>
