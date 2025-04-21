@@ -43,10 +43,29 @@ export function useSupabaseAuth() {
     }
   };
 
+  // Add a function to refresh the session token if needed
+  const refreshSession = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.error('Error refreshing session:', error);
+      } else if (data && data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+      }
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     session,
     user,
     loading,
     signOut,
+    refreshSession
   };
 }

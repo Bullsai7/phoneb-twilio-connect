@@ -2,18 +2,36 @@
 import React, { useState } from 'react';
 import CallInterface from '@/components/Calls/CallInterface';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info, PhoneIcon, CheckCircle2 } from 'lucide-react';
+import { Info, PhoneIcon, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useTwilio } from '@/context/TwilioContext';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TwiMLAppGuide from '@/components/Calls/TwiMLAppGuide';
+import { toast } from 'sonner';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 const Calls = () => {
   const { isAuthenticated: isTwilioSetup } = useTwilio();
+  const { session, refreshSession } = useSupabaseAuth();
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
+  const handleRetryConnection = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshSession();
+      toast.success("Session refreshed. Retrying connection...");
+      // Force a reload of the page after session refresh
+      window.location.reload();
+    } catch (error) {
+      toast.error("Failed to refresh session");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Make a Call</h1>
@@ -29,7 +47,7 @@ const Calls = () => {
         </Alert>
       ) : (
         <Alert variant="warning" className="mb-4">
-          <Info className="h-4 w-4" />
+          <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Twilio Setup Required</AlertTitle>
           <AlertDescription className="flex flex-col space-y-2">
             <p>To make calls, you need to set up your Twilio account first. Go to the dashboard and configure your Twilio credentials.</p>
@@ -104,6 +122,23 @@ const Calls = () => {
           </CardContent>
         </Card>
       )}
+
+      <Alert variant="default" className="mb-4">
+        <Info className="h-4 w-4" />
+        <AlertTitle>Connection Troubleshooting</AlertTitle>
+        <AlertDescription className="flex flex-col space-y-2">
+          <p>If you're experiencing connection issues, try refreshing your session:</p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRetryConnection} 
+            disabled={isRefreshing} 
+            className="w-fit"
+          >
+            {isRefreshing ? "Refreshing..." : "Refresh Connection"}
+          </Button>
+        </AlertDescription>
+      </Alert>
       
       <CallInterface />
     </div>

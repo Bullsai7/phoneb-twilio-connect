@@ -33,12 +33,13 @@ export interface TwilioPhoneNumber {
 }
 
 export const useCallSetup = (micPermission: string, selectedAccountId?: string) => {
-  const { session } = useSupabaseAuth();
+  const { session, refreshSession } = useSupabaseAuth();
   const [isInitializing, setIsInitializing] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [availableNumbers, setAvailableNumbers] = useState<TwilioPhoneNumber[]>([]);
   const [ownedNumbers, setOwnedNumbers] = useState<TwilioPhoneNumber[]>([]);
   const [isLoadingNumbers, setIsLoadingNumbers] = useState(false);
+  const [tokenRetries, setTokenRetries] = useState(0);
   const {
     setDevice,
     setConnection,
@@ -105,6 +106,15 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
 
         if (error) {
           console.error("Error invoking get-twilio-token function:", error);
+          
+          // If we got an auth error and have retries left, try refreshing the session
+          if (error.message?.includes('auth') && tokenRetries < 2) {
+            setTokenRetries(prev => prev + 1);
+            await refreshSession();
+            setIsInitializing(false);
+            return; // This will trigger the effect again with refreshed token
+          }
+          
           throw new Error(error.message || "Failed to get token from server");
         }
 
@@ -151,16 +161,22 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
         
         hasSetupCompleted = true;
         setDevice(newDevice);
+        setTokenRetries(0); // Reset retries on success
       } catch (error: any) {
         console.error('Error setting up Twilio device:', error);
         setSetupError(error.message);
         
-        if (error.message.includes("Application SID")) {
+        let errorMessage = error.message || "An unknown error occurred";
+        let details = error.details || "";
+        
+        if (errorMessage.includes("Application SID") || errorMessage.includes("TwiML")) {
           toast.error("TwiML App not configured properly. Please check your Twilio settings.");
-        } else if (error.message.includes("credentials")) {
+        } else if (errorMessage.includes("credentials") || errorMessage.includes("auth")) {
           toast.error("Twilio credentials are missing or invalid. Please update them in settings.");
+        } else if (errorMessage.includes("token")) {
+          toast.error("Authentication error. Please try logging out and back in.");
         } else {
-          toast.error("Failed to initialize phone connection: " + error.message);
+          toast.error("Failed to initialize phone connection: " + errorMessage);
         }
         
         // Set device to null in case of error
@@ -181,7 +197,7 @@ export const useCallSetup = (micPermission: string, selectedAccountId?: string) 
       }
       setDevice(null);
     };
-  }, [session, micPermission, selectedAccountId]);
+  }, [session, micPermission, selectedAccountId, tokenRetries, refreshSession]);
 
   return {
     isInitializing,
