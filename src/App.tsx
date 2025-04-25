@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -14,6 +13,7 @@ import Calls from "./pages/Calls";
 import Messages from "./pages/Messages";
 import History from "./pages/History";
 import NotFound from "./pages/NotFound";
+import TwilioGuide from "./pages/TwilioGuide";
 
 const App: React.FC = () => {
   // Create a new instance of QueryClient
@@ -36,6 +36,7 @@ const App: React.FC = () => {
                 <Route path="/calls" element={<Calls />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/history" element={<History />} />
+                <Route path="/guide" element={<TwilioGuide />} />
               </Route>
               
               {/* Catch-all route */}

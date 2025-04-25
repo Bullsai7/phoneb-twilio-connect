@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Phone, MessageSquare, History, X } from 'lucide-react';
+import { Home, Phone, MessageSquare, History, BookOpen, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 
@@ -16,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
     { icon: Phone, label: 'Calls', path: '/calls' },
     { icon: MessageSquare, label: 'Messages', path: '/messages' },
     { icon: History, label: 'History', path: '/history' },
+    { icon: BookOpen, label: 'Setup Guide', path: '/guide' },
   ];
 
   return (
